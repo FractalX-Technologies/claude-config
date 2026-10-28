@@ -13,7 +13,8 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [--uninstall] [--quiet]
 
-  (no flag)    link CLAUDE.md, rules, agents, hooks and every skill into ~/.claude and register the hooks
+  (no flag)    link CLAUDE.md, rules, agents, hooks and every skill into ~/.claude, register the hooks and
+               open ~/.claude/claude-config-report.html with what changed (CLAUDE_CONFIG_NO_OPEN=1 skips opening)
   --uninstall  remove those links and hooks; backups and ~/.claude/personal.md stay
   --quiet      print nothing unless something fails
 EOF
@@ -34,6 +35,10 @@ command -v jq >/dev/null 2>&1 || { echo "install.sh needs jq: brew install jq (m
 backup="$claude/backups/claude-config-$(date +%Y%m%d-%H%M%S)"
 settings="$claude/settings.json"
 updater="\"$kit/scripts/update.sh\""
+# What this run changed, one "kind<TAB>value" per line, for scripts/report.mjs.
+changes=$(mktemp)
+trap 'rm -f "$changes"' EXIT
+note() { printf '%s\t%s\n' "$1" "$2" >> "$changes"; }
 
 # Every link this kit owns, as "source<TAB>link".
 links() {
@@ -59,6 +64,7 @@ link() {                               # $1 = source, $2 = link
   if [ -e "$2" ] || [ -L "$2" ]; then move_to_backup "$2"; fi
   mkdir -p "$(dirname "$2")"
   ln -s "$1" "$2"
+  note linked "${2#"$claude"/}"
   say "  linked ~/.claude/${2#"$claude"/}"
 }
 
@@ -78,6 +84,16 @@ write_settings() {                     # stdin = new settings; writes only on a 
 }
 
 current_settings() { if [ -f "$settings" ]; then cat "$settings"; else echo '{}'; fi; }
+hook_commands() { current_settings | jq -r '[.hooks[]?[]?.hooks[]?.command] | unique | .[]'; }
+
+# The report opens in the browser; it is a nicety, so without Node the install still succeeds.
+report() {
+  [ -d "$backup" ] && note backup "$backup"
+  command -v node >/dev/null 2>&1 || { say "Install Node 20+ to get the report of what changed."; return 0; }
+  local line; line=$(node "$kit/scripts/report.mjs" --changes "$changes" --open) || return 0
+  say "What changed: ${line%%$'\t'*}"
+  say "Report: ${line#*$'\t'}"
+}
 
 install() {
   say "Installing claude-config from $kit"
@@ -85,7 +101,9 @@ install() {
 
   # A skill removed upstream leaves a dangling link behind.
   for l in "$claude"/skills/*; do
-    if points_into_kit "$l" && [ ! -e "$l" ]; then rm "$l"; say "  unlinked removed skill $(basename "$l")"; fi
+    if points_into_kit "$l" && [ ! -e "$l" ]; then
+      rm "$l"; note unlinked "skills/$(basename "$l")"; say "  unlinked removed skill $(basename "$l")"
+    fi
   done
 
   if [ ! -e "$claude/personal.md" ]; then
@@ -94,12 +112,15 @@ install() {
     say "  created ~/.claude/personal.md: write your stack and projects there"
   fi
 
+  local before_hooks; before_hooks=$(hook_commands)
   # Append each kit hook whose command isn't registered for that event yet; the user's own hooks stay as they are.
   current_settings | jq --argjson kit "$(kit_hooks)" '
     reduce ($kit | to_entries[]) as $e (.;
       [ (.hooks[$e.key] // [])[] | .hooks[]?.command ] as $have
       | [ $e.value[] | .hooks |= map(select(.command as $c | $have | index($c) | not)) | select(.hooks | length > 0) ] as $add
       | if ($add | length) > 0 then .hooks[$e.key] = ((.hooks[$e.key] // []) + $add) else . end)' | write_settings
+  comm -13 <(printf '%s\n' "$before_hooks" | sort) <(hook_commands | sort) | while IFS= read -r c; do [ -n "$c" ] && note hook "$c"; done
+  [ "$quiet" = 1 ] || report
   say "Done. Restart Claude Code and check /hooks."
 }
 

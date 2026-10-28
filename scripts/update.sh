@@ -9,6 +9,19 @@ cat >/dev/null                         # the hook payload; unused
 kit="$(cd "$(dirname "$0")/.." && pwd -P)"
 [ -d "$kit/.git" ] || exit 0
 stamp="$kit/.git/claude-config-last-update"
+# "<first unseen rev><TAB><summary><TAB><report file>", written after a pull that changed something.
+unseen="$kit/.git/claude-config-unseen"
+
+# The pull happened in an earlier session's background, so this is the first chance to say what it brought.
+if [ -s "$unseen" ] && command -v jq >/dev/null 2>&1; then
+  IFS=$'\t' read -r _ summary report < "$unseen"
+  rm -f "$unseen"
+  jq -n --arg s "$summary" --arg r "$report" '{
+    systemMessage: "claude-config updated: \($s). What changed: file://\($r)",
+    hookSpecificOutput: { hookEventName: "SessionStart",
+      additionalContext: "The shared claude-config setup was updated since the last session (\($s)). The report is \($r)." } }'
+fi
+
 minutes=$(( ${CLAUDE_CONFIG_UPDATE_HOURS:-6} * 60 ))
 if [ -f "$stamp" ] && [ -z "$(find "$stamp" -mmin "+$minutes" 2>/dev/null)" ]; then exit 0; fi
 touch "$stamp"
@@ -19,6 +32,8 @@ touch "$stamp"
   [ -z "$(git status --porcelain)" ] || exit 0
   before=$(git rev-parse HEAD)
   GIT_TERMINAL_PROMPT=0 git pull --ff-only --quiet || exit 0
-  [ "$(git rev-parse HEAD)" = "$before" ] || "$kit/install.sh" --quiet
+  [ "$(git rev-parse HEAD)" = "$before" ] && exit 0
+  "$kit/install.sh" --quiet
+  line=$(node "$kit/scripts/report.mjs" --from "$before") && printf '%s\t%s\n' "$before" "$line" > "$unseen"
 ) >/dev/null 2>&1 </dev/null &
 exit 0
