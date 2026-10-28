@@ -1,0 +1,64 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/session-context.sh", "timeout": 10 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Bash",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/protect-secrets.sh", "timeout": 10, "statusMessage": "Checking secret files..." }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/dangerous-commands.sh", "timeout": 10, "statusMessage": "Checking dangerous commands and installs..." }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write|Bash",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/protect-config.sh", "timeout": 10, "statusMessage": "Checking agent config..." },
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/protect-tests.sh", "timeout": 10, "statusMessage": "Checking tests..." }
+        ]
+      },
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/guard-generated.sh", "timeout": 10, "statusMessage": "Checking generated files..." },
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/guard-lockfiles.sh", "timeout": 10, "statusMessage": "Checking lockfiles..." },
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/electron-window-baseline.sh", "timeout": 10, "statusMessage": "Checking Electron window baseline..." },
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/short-doc-comments.sh", "timeout": 15, "statusMessage": "Checking doc-comment length..." }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/subagent-cap.sh", "timeout": 10 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/dotnet-format-check.sh", "timeout": 30 },
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/no-hardcoded-visuals.sh", "timeout": 20 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/stop-checklist.sh", "timeout": 20 }
+        ]
+      }
+    ]
+  }
+}
