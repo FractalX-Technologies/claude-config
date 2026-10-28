@@ -33,12 +33,14 @@ settings, hooks and skills stay. Anything it replaces (an old `CLAUDE.md`, a ski
 
 ## See what you have
 
-`install.sh` ends by opening `~/.claude/claude-config-report.html`, a page that shows:
+`install.sh` ends by opening `~/.claude/claude-config-report.html`, laid out like Notion:
 
-- **What changed**: what is new, what differed from the copy you already had (with the diff), what was
-  identical, and the hooks it registered.
-- **The catalog**: every skill, rule, agent and hook with its description, searchable, each one expandable to its
-  full text.
+- **A sidebar tree** of what it installed, folder by folder (Skills → `flow-debug` → `references/`…), with a dot on
+  what changed and a search over names and contents.
+- **A page per folder** listing what it holds, and **a page per file** with its frontmatter as properties and the
+  Markdown rendered.
+- **What changed**: what is new, what differed from the copy you already had (with the diff), what was identical,
+  and the hooks it registered.
 
 After an automatic update the page is rewritten with the commits and diffs it brought, and the next session
 starts with a notice linking to it. To open it any time: `~/.claude-config/scripts/report.mjs --open`.

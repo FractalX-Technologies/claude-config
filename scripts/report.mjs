@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Writes a self-contained HTML page: what this kit installed and what changed. Node only, no dependencies.
+// Writes a self-contained HTML page, laid out like Notion: a sidebar tree of what this kit installed and a page per
+// folder or file, plus what changed. Node only, no dependencies; the page's own code is in scripts/report/.
 //
-//   report.mjs                     the catalog alone
+//   report.mjs                     the tree alone
 //   report.mjs --changes <file>    after install.sh: the links, unlinks and hooks it wrote, against what it backed up
 //   report.mjs --from <rev>        after an update: everything between <rev> and HEAD
 //   --out <file>  where to write (default ~/.claude/claude-config-report.html)   --open  open it in the browser
@@ -15,7 +16,6 @@ import { fileURLToPath } from 'node:url';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLAUDE = process.env.CLAUDE_HOME ?? path.join(homedir(), '.claude');
-const MAX_DIFF_LINES = 400;
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -69,45 +69,99 @@ function hookNotes() {
   const readme = path.join(KIT, 'hooks/README.md');
   if (!existsSync(readme)) return notes;
   for (const line of read(readme).split('\n')) {
-    const cells = line.split('|').map((c) => c.trim());
+    const cells = line.split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, '|'));
     const name = cells[1]?.match(/^`([\w-]+)`$/)?.[1];
     if (name) notes[name] = { when: cells[2], decision: cells[3].replace(/\*\*/g, ''), stops: cells[4] };
   }
   return notes;
 }
 
-function catalog() {
-  const skills = readdirSync(path.join(KIT, 'skills')).filter((n) => existsSync(path.join(KIT, 'skills', n, 'SKILL.md'))).map((n) => {
-    const text = read(path.join(KIT, 'skills', n, 'SKILL.md'));
-    const fm = frontmatter(text);
-    return { kind: 'skill', name: n, description: fm.description ?? '', license: fm.license, author: fm['metadata.author'],
-      files: files(path.join(KIT, 'skills', n)).length, source: `skills/${n}/SKILL.md`, text };
-  });
-  const rules = readdirSync(path.join(KIT, 'rules')).filter((n) => existsSync(path.join(KIT, 'rules', n, 'RULE.md'))).map((n) => {
-    const text = read(path.join(KIT, 'rules', n, 'RULE.md'));
-    const paths = frontmatter(text).paths;
-    const refs = isDir(path.join(KIT, 'rules', n, 'references')) ? readdirSync(path.join(KIT, 'rules', n, 'references')) : [];
-    return { kind: 'rule', name: n, description: firstHeading(text), paths: Array.isArray(paths) ? paths : paths ? [paths] : [],
-      refs, source: `rules/${n}/RULE.md`, text };
-  });
-  const agents = readdirSync(path.join(KIT, 'agents')).filter((n) => n.endsWith('.md')).map((n) => {
-    const text = read(path.join(KIT, 'agents', n));
-    const fm = frontmatter(text);
-    return { kind: 'agent', name: fm.name ?? n.replace(/\.md$/, ''), description: fm.description ?? '', tools: fm.tools, source: `agents/${n}`, text };
-  });
-  const notes = hookNotes();
-  const wiring = JSON.parse(read(path.join(KIT, 'hooks/hooks.json'))).hooks;
-  const hooks = Object.entries(wiring).flatMap(([event, groups]) => groups.flatMap((g) => g.hooks.map((h) => {
-    const name = h.command.match(/hooks\/([\w-]+)\.sh/)?.[1] ?? h.command;
-    const file = path.join(KIT, 'hooks', `${name}.sh`);
-    return { kind: 'hook', name, event, matcher: g.matcher ?? '*', description: notes[name]?.stops ?? '', decision: notes[name]?.decision ?? '',
-      source: `hooks/${name}.sh`, text: existsSync(file) ? read(file) : '' };
-  })));
-  const instructions = read(path.join(KIT, 'CLAUDE.md'));
-  return { skills, rules, agents, hooks, instructions };
+const SECTIONS = {
+  skills: { label: 'Skills', description: 'How to write each language well and how to run each workflow. Claude loads a skill when the task matches its description.' },
+  rules: { label: 'Rules', description: 'Rules per stack. A RULE.md loads when Claude touches a file its paths match; shared loads in every project.' },
+  agents: { label: 'Agents', description: 'Subagents that review a change before a pull request.' },
+  hooks: { label: 'Hooks', description: 'Guards that run on every tool call, whatever Claude remembers.' },
+};
+const ROOT_ORDER = ['CLAUDE.md', 'skills', 'rules', 'agents', 'hooks'];
+const LEAD_FILES = ['SKILL.md', 'RULE.md', 'README.md', 'INDEX.md'];
+const LANG = { '.md': 'markdown', '.sh': 'shell', '.mjs': 'javascript', '.js': 'javascript', '.json': 'json', '.yml': 'yaml', '.yaml': 'yaml' };
+
+// Frontmatter as page properties, the way Notion shows a page's fields above its text.
+function fmProps(fm, skip = ['name', 'description']) {
+  return Object.entries(fm).filter(([k, v]) => !skip.includes(k) && v !== '').map(([k, v]) => [k.replace(/^metadata\./, ''), v]);
 }
 
-// Which catalog entry a repo path belongs to.
+function describe(rel, isFolder, notes, wiring) {
+  const parts = rel.split('/');
+  const name = parts.at(-1);
+  if (parts.length === 1 && SECTIONS[rel]) return SECTIONS[rel];
+  if (rel === 'CLAUDE.md') {
+    return { title: 'CLAUDE.md', description: 'How Claude works with you: modes, code, secrets, git and subagents. Imports your own ~/.claude/personal.md.' };
+  }
+  if (isFolder && parts[0] === 'skills' && parts.length === 2) {
+    const skill = path.join(KIT, rel, 'SKILL.md');
+    const fm = existsSync(skill) ? frontmatter(read(skill)) : {};
+    return { description: fm.description ?? '', props: [['files', String(files(path.join(KIT, rel)).length)], ...fmProps(fm)] };
+  }
+  if (isFolder && parts[0] === 'rules' && parts.length === 2) {
+    const rule = path.join(KIT, rel, 'RULE.md');
+    const text = existsSync(rule) ? read(rule) : '';
+    const paths = frontmatter(text).paths;
+    return { description: firstHeading(text), props: [['loads with', paths ? [paths].flat() : 'every project']] };
+  }
+  if (isFolder) return {};
+  if (parts[0] === 'hooks' && parts.length === 2 && name.endsWith('.sh')) {
+    const hook = name.replace(/\.sh$/, '');
+    const note = notes[hook];
+    const on = wiring.filter((w) => w.name === hook).map((w) => `${w.event} · ${w.matcher}`);
+    return { description: note?.stops ?? '', props: [['runs', on.length ? on : 'sourced by other hooks'], ...(note ? [['decision', note.decision]] : [])] };
+  }
+  if (name.endsWith('.md')) {
+    const text = read(path.join(KIT, rel));
+    const fm = frontmatter(text);
+    return { description: fm.description ?? (LEAD_FILES.includes(name) ? '' : firstHeading(text)), props: fmProps(fm) };
+  }
+  return {};
+}
+
+// The kit as a tree of folders and files, each with what the page shows about it and what changed in it.
+function buildTree(changes) {
+  const changed = new Map((changes?.items ?? []).flatMap((i) => i.files.map((f) => [f.path, f])));
+  const notes = hookNotes();
+  const wiring = Object.entries(JSON.parse(read(path.join(KIT, 'hooks/hooks.json'))).hooks)
+    .flatMap(([event, groups]) => groups.flatMap((g) => g.hooks.map((h) => ({ event, matcher: g.matcher ?? 'every call', name: h.command.match(/hooks\/([\w-]+)\.sh/)?.[1] }))));
+  const order = (dir, names) => names.filter((n) => n !== '.DS_Store').sort((x, y) => {
+    const rank = (n) => (dir === '' ? ROOT_ORDER.indexOf(n) : LEAD_FILES.includes(n) ? -2 : isDir(path.join(KIT, dir, n)) ? -1 : 0);
+    return rank(x) - rank(y) || x.localeCompare(y);
+  });
+  function node(rel) {
+    const abs = path.join(KIT, rel);
+    const folder = isDir(abs);
+    const name = rel.split('/').at(-1);
+    const n = { path: rel, label: name, type: folder ? 'folder' : 'file', ...describe(rel, folder, notes, wiring) };
+    if (folder) {
+      n.children = order(rel, readdirSync(abs)).map((c) => node(`${rel}/${c}`));
+      const st = new Set(n.children.map((c) => c.status).filter(Boolean));
+      if (st.size) n.status = st.size === 1 && st.has('added') && n.children.every((c) => c.status === 'added') ? 'added' : 'modified';
+    } else {
+      n.lang = LANG[path.extname(name)] ?? 'text';
+      n.content = read(abs);
+      const f = changed.get(rel);
+      if (f) Object.assign(n, { status: f.status, diff: f.diff || undefined });
+    }
+    return n;
+  }
+  const children = order('', ROOT_ORDER.filter((n) => existsSync(path.join(KIT, n)))).map(node);
+  const count = (k) => children.find((c) => c.path === k)?.children?.length ?? 0;
+  return {
+    path: '', label: 'Overview', type: 'folder', title: 'Your Claude Code setup',
+    description: 'Everything claude-config links into ~/.claude. Pick a folder on the left, or search.',
+    props: [['skills', String(count('skills'))], ['rules', String(count('rules'))], ['agents', String(count('agents'))], ['hooks', String(wiring.length)]],
+    children,
+  };
+}
+
+// Which item (skill, rule, agent, hook) a repo path belongs to.
 function itemOf(rel) {
   const parts = rel.split('/');
   const [top, second] = parts;
@@ -119,6 +173,15 @@ function itemOf(rel) {
   if (rel === 'hooks/hooks.json') return { kind: 'hook', name: 'hooks.json' };
   if (top === 'hooks' && second === 'lib') return { kind: 'hook', name: 'lib' };
   return { kind: 'repo', name: rel };
+}
+
+// The page that shows an item, for the links on "What changed".
+function pageOf({ kind, name }) {
+  if (kind === 'skill') return `skills/${name}`;
+  if (kind === 'rule') return `rules/${name}`;
+  if (kind === 'agent') return `agents/${name}.md`;
+  if (kind === 'hook') return name === 'hooks.json' ? 'hooks/hooks.json' : name === 'lib' ? 'hooks/lib' : `hooks/${name}.sh`;
+  return name;
 }
 
 // Unified diff body without the header lines, which only repeat temp paths.
@@ -138,7 +201,7 @@ function group(fileChanges) {
   for (const f of fileChanges) {
     const it = itemOf(f.path);
     const key = `${it.kind}:${it.name}`;
-    if (!items.has(key)) items.set(key, { ...it, files: [] });
+    if (!items.has(key)) items.set(key, { ...it, path: pageOf(it), files: [] });
     items.get(key).files.push(f);
   }
   return [...items.values()].map((it) => {
@@ -209,210 +272,45 @@ function summary(changes) {
 // The FractalX mark from fractalx.io: a 3×3 grid of squares with the centre left out.
 const MARK_RECTS = [0, 1.07, 2.14].flatMap((y, row) => [0, 1.07, 2.14].filter((_, col) => row !== 1 || col !== 1)
   .map((x) => `<rect x="${x}" y="${y}" width="0.86" height="0.86"/>`)).join('');
-const mark = (cls) => `<svg class="${cls}" viewBox="0 0 3 3" fill="currentColor" aria-hidden="true">${MARK_RECTS}</svg>`;
 const FAVICON = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="23" fill="#0B0C0E"/><g fill="#F6F5F3" transform="translate(22 22) scale(18.67)">${MARK_RECTS}</g></svg>`)}`;
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const asset = (name) => read(path.join(KIT, 'scripts/report', name));
+// JSON inside <script>: escaping every `<` keeps a file that contains `</script>` from ending the block.
+const embed = (value) => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
-function renderDiff(d) {
-  const lines = d.split('\n');
-  const shown = lines.slice(0, MAX_DIFF_LINES).map((l) => {
-    const cls = l.startsWith('@@') ? 'hunk' : l.startsWith('+') ? 'add' : l.startsWith('-') ? 'del' : l.startsWith('\\') ? 'meta' : '';
-    return `<span class="${cls}">${esc(l) || ' '}</span>`;
-  }).join(''); // the spans are blocks: a newline between them would double every line
-  const more = lines.length > MAX_DIFF_LINES ? `<p class="muted">… ${lines.length - MAX_DIFF_LINES} more lines</p>` : '';
-  return `<pre class="diff">${shown}</pre>${more}`;
-}
-
-const STATUS_LABEL = { added: 'New', modified: 'Changed', removed: 'Removed', unchanged: 'Same as before' };
-const KIND_LABEL = { skill: 'Skill', rule: 'Rule', agent: 'Agent', hook: 'Hook', instructions: 'Instructions', repo: 'Repo' };
-
-const anchor = (kind, name) => `${kind}-${name}`.replace(/[^\w-]/g, '-');
-const KIND_PLURAL = { skill: 'Skills', rule: 'Rules', agent: 'Agents', hook: 'Hooks', instructions: 'Instructions', repo: 'Repo' };
-
-function changeDetails(it) {
-  return `
-    <details class="change ${it.status}">
-      <summary><span class="badge ${it.status}">${STATUS_LABEL[it.status]}</span> <span class="kind">${KIND_LABEL[it.kind]}</span> <strong>${esc(it.name)}</strong>
-        <span class="muted">${it.files.length} file${it.files.length === 1 ? '' : 's'}</span></summary>
-      ${it.files.map((f) => `<div class="file"><div class="path"><span class="badge ${f.status}">${STATUS_LABEL[f.status]}</span> <code>${esc(f.path)}</code></div>${f.diff ? renderDiff(f.diff) : ''}</div>`).join('')}
-    </details>`;
-}
-
-// Changed items lead with their diffs; new ones are a list of names linking to their card below.
-function renderChanges(changes, known) {
-  if (!changes) {
-    return `<p class="muted">This page only lists what is installed. It shows changes after <code>install.sh</code> or an update.</p>`;
-  }
-  const intro = changes.mode === 'install'
-    ? `<p>Compared with what you had in <code>~/.claude</code> before installing${changes.backup ? `. Your previous files are in <code>${esc(changes.backup.replace(homedir(), '~'))}</code>` : ''}.</p>`
-    : `<p>Updated from <code>${esc(changes.from.slice(0, 7))}</code>:</p>
-       <ul class="commits">${changes.commits.map(([h, d, s]) => `<li><code>${esc(h)}</code> <span class="muted">${esc(d)}</span> ${esc(s)}</li>`).join('')}</ul>`;
-  const byName = (a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name);
-  const user = changes.items.filter((i) => i.kind !== 'repo');
-  const repo = changes.items.filter((i) => i.kind === 'repo').sort(byName);
-  const by = (st) => user.filter((i) => i.status === st).sort(byName);
-  if (!user.length && !repo.length && !changes.hooks.length) {
-    return `${intro}<p class="summary">Nothing changed: everything was already installed and current.</p>`;
-  }
-  const tiles = [['added', by('added').length], ['modified', by('modified').length], ['removed', by('removed').length], ['unchanged', changes.unchanged.length]]
-    .map(([st, n]) => `<div class="tile ${st}"><span class="n">${n}</span><span>${STATUS_LABEL[st]}</span></div>`).join('');
-  const nameLink = (i) => {
-    const id = i.kind === 'instructions' ? 'instructions' : anchor(i.kind, i.name);
-    return known.has(id) ? `<a class="chip link" href="#${id}">${esc(i.name)}</a>` : `<span class="chip">${esc(i.name)}</span>`;
-  };
-  const byKind = (list) => Object.entries(list.reduce((g, i) => ({ ...g, [i.kind]: [...(g[i.kind] ?? []), i] }), {}))
-    .map(([k, l]) => `<div class="kindrow"><span class="kind">${KIND_PLURAL[k]}</span><div class="chips">${l.map(nameLink).join('')}</div></div>`).join('');
-  const modified = by('modified');
-  const added = by('added');
-  const removed = by('removed');
-  return `${intro}
-    <div class="tiles">${tiles}</div>
-    ${modified.length ? `<h3>Changed</h3>${modified.map(changeDetails).join('')}` : ''}
-    ${added.length ? `<h3>New</h3><div class="kinds">${byKind(added)}</div>` : ''}
-    ${removed.length ? `<h3>Removed</h3><div class="kinds">${byKind(removed)}</div>` : ''}
-    ${changes.unchanged.length ? `<h3>Same as before</h3><div class="kinds">${byKind(changes.unchanged)}</div>` : ''}
-    ${changes.hooks.length ? `<h3>Registered in settings.json</h3><ul>${changes.hooks.map((c) => `<li><code>${esc(c)}</code></li>`).join('')}</ul>` : ''}
-    ${repo.length ? `<details class="change"><summary><strong>Other repo files</strong> <span class="muted">docs, tests and CI · ${repo.length}</span></summary>
-      <div class="nested">${repo.map(changeDetails).join('')}</div></details>` : ''}`;
-}
-
-function changedNames(changes) {
-  const m = new Map();
-  for (const i of changes?.items ?? []) m.set(`${i.kind}:${i.name}`, i.status);
-  return m;
-}
-
-function card(entry, changed, meta) {
-  const st = changed.get(`${entry.kind}:${entry.name}`);
-  return `
-    <details class="card" id="${anchor(entry.kind, entry.name)}" data-search="${esc(`${entry.name} ${entry.description} ${meta.replace(/<[^>]+>/g, ' ')}`.toLowerCase())}">
-      <summary>
-        <div class="title"><strong>${esc(entry.name)}</strong>${st ? ` <span class="badge ${st}">${STATUS_LABEL[st]}</span>` : ''}</div>
-        <p>${esc(entry.description)}</p>
-        <div class="meta">${meta}</div>
-      </summary>
-      <div class="source"><code>${esc(entry.source)}</code></div>
-      <pre class="text">${esc(entry.text)}</pre>
-    </details>`;
-}
-
-function render(cat, changes) {
-  const changed = changedNames(changes);
+function render(changes) {
   const head = tryGit('log', '-1', '--format=%h%x09%as%x09%s').split('\t');
   const remote = tryGit('remote', 'get-url', 'origin').replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
-  const chip = (t) => `<span class="chip">${esc(t)}</span>`;
-  const sections = [
-    ['skills', 'Skills', cat.skills.map((s) => card(s, changed, [`${s.files} file${s.files === 1 ? '' : 's'}`, s.license && `license ${s.license}`, s.author && `by ${s.author}`].filter(Boolean).map(chip).join('')))],
-    ['rules', 'Rules', cat.rules.map((r) => card(r, changed, [...(r.paths.length ? r.paths.slice(0, 4) : ['every project']), r.paths.length > 4 && `+${r.paths.length - 4} paths`, r.refs.length && `${r.refs.length} references`].filter(Boolean).map(chip).join('')))],
-    ['agents', 'Agents', cat.agents.map((a) => card(a, changed, a.tools ? chip(`tools: ${a.tools}`) : ''))],
-    ['hooks', 'Hooks', cat.hooks.map((h) => card(h, changed, [h.event, `on ${h.matcher}`, h.decision].filter(Boolean).map(chip).join('')))],
-  ];
-  const known = new Set([...cat.skills, ...cat.rules, ...cat.agents, ...cat.hooks].map((e) => anchor(e.kind, e.name)).concat('instructions'));
-  const nav = [['changes', 'What changed'], ...sections.map(([id, t, list]) => [id, `${t} (${list.length})`]), ['instructions', 'CLAUDE.md']]
-    .map(([id, t]) => `<a href="#${id}">${esc(t)}</a>`).join('');
+  const data = {
+    tree: buildTree(changes),
+    changes: changes && { ...changes, backup: changes.backup?.replace(homedir(), '~'), summary: summary(changes) },
+  };
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>claude-config report</title>
+<title>claude-config</title>
 <link rel="icon" href="${FAVICON}">
-<style>
-:root { --bg: #F6F5F3; --panel: #FFFFFF; --text: #0B0C0E; --muted: #6E6D6A; --line: #E4E2DE; --accent: #0B0C0E;
-  --add: #1a7f37; --add-bg: #e6f4ea; --del: #c62828; --del-bg: #fdecec; --mod: #8a5d00; --mod-bg: #fbf0d4; --code: #EFEDE9; }
-@media (prefers-color-scheme: dark) { :root { --bg: #0B0C0E; --panel: #131417; --text: #F6F5F3; --muted: #8E8D8A; --line: #24252A;
-  --accent: #F6F5F3; --add: #6fd08c; --add-bg: #14281b; --del: #ff8a80; --del-bg: #331a1a; --mod: #e8c46a; --mod-bg: #2e2510; --code: #1C1D21; } }
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-header, main { max-width: 1100px; margin: 0 auto; padding: 0 16px; }
-header { padding-top: 40px; padding-bottom: 8px; }
-.brand { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 600; letter-spacing: -0.03em; }
-.brand .mark { width: 1.4em; height: 1.4em; }
-.brand .slash { color: var(--muted); font-weight: 400; }
-h1 { margin: 28px 0 4px; font-size: 30px; font-weight: 600; letter-spacing: -0.03em; }
-a { color: inherit; }
-h2 { margin: 40px 0 12px; font-size: 20px; scroll-margin-top: 64px; }
-nav { position: sticky; top: 0; z-index: 1; background: var(--bg); border-bottom: 1px solid var(--line); }
-nav .inner { max-width: 1100px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 6px 16px; flex-wrap: wrap; align-items: center; }
-nav a { color: var(--muted); text-decoration: none; font-size: 14px; }
-nav a:hover { color: var(--accent); }
-nav input { margin-inline-start: auto; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); flex: 0 1 260px; min-width: 0; }
-@media (max-width: 600px) { nav input { flex: 1 1 100%; } }
-code { overflow-wrap: anywhere; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
-.muted { color: var(--muted); }
-.summary { font-weight: 600; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 12px; }
-h3 { margin: 28px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0 8px; }
-.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; font-size: 13px; color: var(--muted); }
-.tile .n { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--text); }
-.tile.added .n { color: var(--add); } .tile.modified .n { color: var(--mod); } .tile.removed .n { color: var(--del); }
-.kinds { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-.kindrow { display: flex; gap: 12px; padding: 10px 14px; align-items: baseline; }
-.kindrow + .kindrow { border-top: 1px solid var(--line); }
-.kindrow .kind { flex: 0 0 96px; font-size: 13px; color: var(--muted); }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip.link { text-decoration: none; color: var(--text); }
-.chip.link:hover { outline: 1px solid var(--line); }
-.nested { padding: 0 12px 4px; }
-@media (max-width: 600px) { .tiles { grid-template-columns: repeat(2, 1fr); } .kindrow { flex-direction: column; gap: 6px; } .kindrow .kind { flex: none; } }
-.card, .change { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-.card > summary { list-style: none; cursor: pointer; padding: 14px 16px; }
-.card > summary::-webkit-details-marker { display: none; }
-.card[open] { grid-column: 1 / -1; }
-.card p { margin: 6px 0 8px; color: var(--muted); font-size: 14px; }
-.card .title { display: flex; gap: 8px; align-items: center; }
-.meta { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--code); color: var(--muted); }
-.source { padding: 0 16px; }
-pre { margin: 0; overflow-x: auto; font: 12.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-pre.text { padding: 12px 16px 16px; white-space: pre-wrap; max-height: 70vh; overflow-y: auto; }
-.change { margin: 8px 0; }
-.change > summary { cursor: pointer; padding: 10px 14px; }
-.change .kind { color: var(--muted); font-size: 13px; }
-.file { border-top: 1px solid var(--line); padding: 8px 14px 12px; }
-.file .path { margin-bottom: 6px; }
-pre.diff { background: var(--code); border-radius: 8px; padding: 8px 0; }
-pre.diff span { display: block; padding: 0 12px; }
-pre.diff .add { background: var(--add-bg); color: var(--add); }
-pre.diff .del { background: var(--del-bg); color: var(--del); }
-pre.diff .hunk { color: var(--muted); }
-.badge { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; padding: 2px 7px; border-radius: 6px; }
-.badge.added { background: var(--add-bg); color: var(--add); }
-.badge.removed { background: var(--del-bg); color: var(--del); }
-.badge.modified { background: var(--mod-bg); color: var(--mod); }
-.badge.unchanged { background: var(--code); color: var(--muted); }
-.commits { padding-inline-start: 18px; }
-.instructions { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
-footer { max-width: 1100px; margin: 40px auto; padding: 0 16px; color: var(--muted); font-size: 13px; }
-</style>
+<style>${asset('app.css')}</style>
 </head>
 <body>
-<header>
-  <div class="brand">${mark('mark')}<span>FractalX</span><span class="slash">/</span><span class="slash">claude-config</span></div>
-  <h1>Your Claude Code setup</h1>
-  <p class="muted">Version <code>${esc(head[0] || 'unknown')}</code> ${esc(head[1] ?? '')} · ${esc(head[2] ?? '')}${remote ? ` · <a href="${esc(remote)}">${esc(remote.replace('https://', ''))}</a>` : ''}</p>
-</header>
-<nav><div class="inner">${nav}<input id="q" type="search" placeholder="Filter skills, rules, agents, hooks…" aria-label="Filter"></div></nav>
-<main>
-  <h2 id="changes">What changed</h2>
-  ${renderChanges(changes, known)}
-  ${sections.map(([id, t, list]) => `<h2 id="${id}">${t}</h2><div class="grid">${list.join('')}</div>`).join('')}
-  <h2 id="instructions">CLAUDE.md</h2>
-  <div class="instructions"><pre class="text">${esc(cat.instructions)}</pre></div>
-</main>
-<footer>Generated ${esc(new Date().toISOString().replace('T', ' ').slice(0, 16))} UTC from <code>${esc(KIT.replace(homedir(), '~'))}</code>. Regenerate with <code>~/.claude-config/scripts/report.mjs --open</code>.</footer>
-<script>
-// A link from "What changed" opens the card it points at.
-const openTarget = () => { const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); if (el && el.tagName === 'DETAILS') el.open = true; };
-addEventListener('hashchange', openTarget);
-openTarget();
-document.getElementById('q').addEventListener('input', (e) => {
-  const q = e.target.value.trim().toLowerCase();
-  for (const c of document.querySelectorAll('.card')) c.hidden = q !== '' && !c.dataset.search.includes(q);
-});
-</script>
+<div class="app">
+  <aside class="sidebar">
+    <a class="brand" href="#/"><svg class="mark" viewBox="0 0 3 3" fill="currentColor" aria-hidden="true">${MARK_RECTS}</svg><span>FractalX</span><span class="slash">/</span><span class="repo">claude-config</span></a>
+    <input id="q" class="search" type="search" placeholder="Search" aria-label="Search files">
+    <nav id="tree" class="tree" aria-label="Files"></nav>
+    <div class="side-foot">Version <code>${esc(head[0] || 'unknown')}</code> · ${esc(head[1] ?? '')}${remote ? `<br><a href="${esc(remote)}">${esc(remote.replace('https://', ''))}</a>` : ''}</div>
+  </aside>
+  <main>
+    <div class="topbar"><button id="menu" class="menu" aria-label="Show files"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg></button><div id="crumbs" class="crumbs"></div></div>
+    <article id="page" class="page"></article>
+  </main>
+</div>
+<script id="data" type="application/json">${embed(data)}</script>
+<script>${asset('markdown.js')}</script>
+<script>${asset('app.js')}</script>
 </body>
 </html>
 `;
@@ -424,6 +322,6 @@ function openInBrowser(file) {
 }
 
 const changes = option('--changes') ? installChanges(option('--changes')) : option('--from') ? updateChanges(option('--from')) : null;
-writeFileSync(out, render(catalog(), changes));
+writeFileSync(out, render(changes));
 if (flag('--open') && !process.env.CLAUDE_CONFIG_NO_OPEN) openInBrowser(out);
 process.stdout.write(`${summary(changes) || 'catalog only'}\t${out}\n`);
