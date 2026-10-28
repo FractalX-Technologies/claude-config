@@ -45,10 +45,10 @@ hooks/
 ## Tests
 
 ```bash
-node --test test/
+node --test test/*.test.mjs
 ```
 
-Node 20+ and `jq`; nothing to install. `HOOKS_DIR=<other copy> node --test test/` runs the suite against
+Node 20+ and `jq`; nothing to install. `HOOKS_DIR=<other copy> node --test test/*.test.mjs` runs the suite against
 another copy, to prove a new test fails without the fix.
 
 ## Turning them on

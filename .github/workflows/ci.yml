@@ -12,6 +12,7 @@ permissions:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
@@ -24,4 +25,4 @@ jobs:
       - name: Syntax-check the scripts
         run: for f in install.sh scripts/*.sh hooks/*.sh hooks/lib/*.sh; do bash -n "$f"; done
       - name: Hooks and installer tests
-        run: node --test hooks/test/ test/
+        run: node --test hooks/test/*.test.mjs test/*.test.mjs

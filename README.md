@@ -46,7 +46,7 @@ edits the repo. Commit and push from there:
 
 ```bash
 cd ~/.claude-config
-node --test hooks/test/ test/     # the hooks and installer suites
+node --test hooks/test/*.test.mjs test/*.test.mjs   # the hooks and installer suites
 git commit -am "feat(skills): …" && git push
 ```
 
