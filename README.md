@@ -31,11 +31,26 @@ Then restart Claude Code, check `/hooks`, and write your stack in `~/.claude/per
 settings, hooks and skills stay. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to
 `~/.claude/backups/claude-config-<date>/`.
 
+## See what you have
+
+`install.sh` ends by opening `~/.claude/claude-config-report.html`, laid out like Notion:
+
+- **A sidebar tree** of what it installed, folder by folder (Skills → `flow-debug` → `references/`…), with a dot on
+  what changed and a search over names and contents.
+- **A page per folder** listing what it holds, and **a page per file** with its frontmatter as properties and the
+  Markdown rendered.
+- **What changed**: what is new, what differed from the copy you already had (with the diff), what was identical,
+  and the hooks it registered.
+
+After an automatic update the page is rewritten with the commits and diffs it brought, and the next session
+starts with a notice linking to it. To open it any time: `~/.claude-config/scripts/report.mjs --open`.
+
 ## Updates
 
 Automatic. At the start of a session `scripts/update.sh` pulls `main` in the background, at most every 6 hours
 (`CLAUDE_CONFIG_UPDATE_HOURS` to change it), and re-runs `install.sh --quiet` so new skills get linked and
-removed ones unlinked. A clone with local changes, or on a branch other than `main`, is never pulled.
+removed ones unlinked, then writes the report. A clone with local changes, or on a branch other than `main`, is
+never pulled.
 
 By hand: `git -C ~/.claude-config pull && ~/.claude-config/install.sh`.
 
@@ -46,7 +61,7 @@ edits the repo. Commit and push from there:
 
 ```bash
 cd ~/.claude-config
-node --test hooks/test/*.test.mjs test/*.test.mjs   # the hooks and installer suites
+node --test hooks/test/*.test.mjs test/*.test.mjs   # the hooks, installer and report suites
 git commit -am "feat(skills): …" && git push
 ```
 
