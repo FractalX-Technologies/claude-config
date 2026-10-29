@@ -46,6 +46,8 @@ For the slice in front of you, and only that one:
    - A slice that changes nothing a flow sees or does (colors, radii, shadows, docs) skips the e2e: its unit tests
      and before/after screenshots prove it.
    - A flake is a bug: find its cause, never re-run until green.
+   - A task **without tests** (global `CLAUDE.md` › Decisions): the gates are the builds and the app installed where
+     the user tries it; no unit tests or e2e, and the plan's **Gates** say so.
 4. **Review** the slice's diff: re-read it yourself against the repo's rules, then run the review agents it needs
    (global `CLAUDE.md` › Subagents) on that diff only. Verify every finding: fix what is real and run the gates
    again; keep the rest, with the evidence, for the gate.

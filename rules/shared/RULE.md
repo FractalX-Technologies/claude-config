@@ -3,7 +3,7 @@
 ## Never break these
 
 1. A change is done when a test proves it: the test fails without the change and passes with it. A bug fix starts
-   with the failing test.
+   with the failing test. The one exception is a task I ran **without tests** (global `CLAUDE.md` › Decisions).
 2. Mobile UI tests are **Maestro** flows, one suite for Android and iOS. Web and Electron use Playwright; macOS apps
    use XCUITest.
 3. Never weaken or delete a test to make a change pass.
@@ -15,7 +15,8 @@
 8. A change to a contract, a token, a route, a test id or a string lands on every platform that uses it, in the same
    change.
 9. A refactor changes structure, never behaviour: follow the `flow-refactor` skill.
-10. Build and run the tests before saying something is done. Trust the build over the editor's errors.
+10. Build and run the tests before saying something is done; without tests, build and install it where I try it.
+    Trust the build over the editor's errors.
 11. A client of a backend (mobile, web, desktop) is a **thin UI**: it draws what the backend returns and sends
     what the user does. Business rules, calculations, eligibility, which items and sections a screen shows, and their
     order come from the backend, so a change ships with a deploy instead of waiting for App Store or Play review. The
@@ -27,7 +28,7 @@
 
 - More than three steps → write the plan in `tasks/todo.md` and work through it.
 - After a correction, add it to `tasks/lessons.md` as "pattern → rule".
-- Something you can't test → a waiver in `tasks/waivers.md`, mentioned in the handoff.
+- Something you can't test, or a task run without tests → a waiver in `tasks/waivers.md`, mentioned in the handoff.
 - Commits: `type(scope): subject` (`feat`, `fix`, `refactor`, `test`, `chore`, `docs`), imperative, one logical change.
 
 ## More detail

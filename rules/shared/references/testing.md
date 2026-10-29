@@ -82,7 +82,8 @@ error-path tests, and coverage never goes down.
 - **Compensating test:** the storage-failure branch of the manager is unit-tested.
 ```
 
-Only for *hard to test*, never for *in a hurry*. Mention every waiver in the handoff.
+Only for *hard to test* or a task the owner ran *without tests* (global `CLAUDE.md` › Decisions), never for *in a
+hurry*. Mention every waiver in the handoff.
 
 ## Definition of done
 

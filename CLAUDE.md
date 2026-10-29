@@ -30,14 +30,19 @@ My stack, projects and machine live in `~/.claude/personal.md`, outside the shar
 ## Decisions
 
 - Before the first edit of each task (a feature, a fix, a refactor, a session's work), ask once with
-  `AskUserQuestion`: **careful** or **automatic**? Don't ask when my message or a handoff already names the mode,
-  for read-only work (questions, searches, reviews), or in a subagent or a run nobody answers: those are automatic.
+  `AskUserQuestion`, both questions in one call: **careful** or **automatic**? **With tests** or **without tests**?
+  Don't ask what my message or a handoff already names, for read-only work (questions, searches, reviews), or in a
+  subagent or a run nobody answers: those are automatic, with tests.
 - **Careful**: the `flow-slices` skill. Each slice is built, tested and reviewed, then waits for my OK before its
   commit and before the next slice starts. It wins over every "without asking" in these rules; "automático" at a
   gate switches the rest of the task to automatic.
 - **Automatic** (also my "no"): don't ask me to confirm plans, scope or ordinary decisions: pick what a senior
   colleague would pick, do the work, and state the assumption in one line so I can push back. Ask only at a real
   fork, where both options are defensible and the choice is mine.
+- **Without tests**: a quick change I try myself. Write and run no tests (unit, e2e, Maestro); build every affected
+  platform and install it where I'll try it (device or simulator; a phone: the `flow-device` skill). Never weaken or
+  delete an existing test, and CI still runs them. The task gets one waiver in `tasks/waivers.md` ("the owner chose
+  without tests"). **With tests** is the shared rules' default.
 - In both modes, hard-to-reverse or outward-facing actions (deleting, releasing, sending data out) and anything
   company policy requires are confirmed first. `git` and `gh` are the exception: § Git.
 
