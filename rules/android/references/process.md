@@ -32,6 +32,7 @@ adb logcat --pid=$(adb shell pidof <applicationId>)
 
 - Never say a change is done without building it.
 - Logs only show when `ENABLE_LOGGING` is on for that flavor: check it before looking for "missing" logs.
+- A develop build on a physical phone, against the backend on this Mac: the `flow-device` skill.
 
 ## Previews
 
