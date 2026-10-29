@@ -31,6 +31,7 @@ xcodebuild -project iosApp/iosApp.xcodeproj -scheme develop \
 - **Trust `xcodebuild`, not the editor.** After a Kotlin change Xcode often shows false errors (`No such module
   'Shared'`, `Cannot find type`). If `xcodebuild` passes, carry on.
 - A new Kotlin symbol missing in Swift usually means an old framework: clean and rebuild.
+- A develop build on a physical iPhone, against the backend on this Mac: the `flow-device` skill.
 
 ## The project file
 
