@@ -84,8 +84,11 @@ My stack, projects and machine live in `~/.claude/personal.md`, outside the shar
 
 ## Git
 
-- Run `git` and `gh` without asking, on any branch, `main` included: commit, push, merge, rebase, pull requests and
-  every other `gh` write.
+- **Commit only after I've tried it.** When a change is done: build it, install it where I try it (device,
+  simulator or browser), say what to try, and stop. Commit and push once I say it's fine. A night run
+  (`flow-sweet-dreams`) commits each phase on its branch, since nobody is there to try it.
+- Past that OK, run `git` and `gh` without asking, on any branch, `main` included: commit, push, merge, rebase, pull
+  requests and every other `gh` write.
 - Other sessions share my checkouts. Run `git status -sb` right before every `switch`, `commit` or `push`, and
   start new work in a worktree off `main` (`git worktree add -b <branch> ../<repo>-<topic> main`).
 - To check whether an error is pre-existing, don't `git stash`: read `git show HEAD:<path>` or
