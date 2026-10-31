@@ -67,6 +67,10 @@ Only for critical flows. A screen that needs a UI test to cover its logic has it
 - **Web and Electron:** Playwright.
 - **macOS apps:** XCUITest.
 
+The fakes a UI test launches with suspend like the network (a short delay). One that answers at once runs the reply
+inside the UI's own event, which a real call never does: a SwiftUI text field rewritten during its own edit keeps the
+typed text.
+
 ## Coverage
 
 No percentage gate: it produces tests that check nothing. Every public behaviour has a test, protected areas have

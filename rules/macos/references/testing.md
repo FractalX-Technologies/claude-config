@@ -28,10 +28,11 @@ A macOS app has no shared Kotlin layer, so its logic lives in the Swift models a
 
 Swift Testing can't drive the UI, so UI tests are XCTest's XCUITest.
 
-
 - Only the critical flows, like on mobile: sign-in, anything the user can't undo, plus one smoke test.
 - Find elements by `.accessibilityIdentifier`, never by text or position.
 - Launch with an argument that swaps in fake repositories: no real network.
+- XCUITest can't resize a window by dragging its edge, and launch arguments don't set its frame. For a narrow layout,
+  tile the window from the menu bar (Window › Move & Resize › Left) and restore it with Return to Previous Size.
 
 ## Before a release
 

@@ -31,6 +31,8 @@ approachable concurrency.
 - Every main action is in a menu (`.commands`) with a keyboard shortcut (`.keyboardShortcut`).
 - Standard shortcuts keep their standard meaning (⌘N, ⌘W, ⌘,, ⌘Q).
 - Everything works with the keyboard alone: focus with `@FocusState` and `.focusable()`.
+- Focus the next step's field once the leaving step's transition ends (a `.task(id:)` that waits as long as the exit).
+  Set at once, macOS hands the focus to the view that is leaving.
 
 ## Mac behaviour
 
