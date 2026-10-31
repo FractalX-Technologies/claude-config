@@ -47,7 +47,8 @@ build every scheme it touches.
 
 ## Before finishing
 
-- [ ] The shared ViewModel comes from `@StateViewModel`; Swift classes are `@Observable` with `@State`.
+- [ ] The shared ViewModel comes from `@StateViewModel`, and `@ObservedViewModel` where it is passed down; Swift
+      classes are `@Observable` with `@State`.
 - [ ] Effects observed once in `.task`; sealed types switched with `onEnum(of:)`, no `as`, no `default:`.
 - [ ] No force unwraps, no inline colors, fonts or sizes.
 - [ ] No `print()`, no `DispatchQueue`, no extra `MainActor.run`.

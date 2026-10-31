@@ -29,7 +29,7 @@ applies only there.
 
 ```swift
 @StateViewModel private var viewModel = KoinHelper().getFeatureViewModel()   // shared ViewModel
-let viewModel: FeatureViewModel                                               // received from the parent
+@ObservedViewModel var viewModel: FeatureViewModel                            // received from the parent
 @State private var camera = CameraReader()                                    // Swift @Observable class
 @State private var showDialog = false                                         // UI-only flag
 @FocusState private var focused: Bool

@@ -54,7 +54,8 @@ shape**. A macOS app in `macosApp/` follows the [macOS rules](../macos/RULE.md) 
 
 1. A screen only draws. Logic, filtering, formatting and navigation decisions live in the shared ViewModel.
 2. Hold the shared ViewModel with `@StateViewModel` (from `KoinHelper`). The other screens of the flow receive it as
-   `let viewModel`.
+   `@ObservedViewModel var viewModel`: a `let` doesn't observe it, so that screen keeps the State it was first drawn
+   with.
 3. Observe Effects once, in `.task { await observeEffects() }`, never in `onAppear`.
 4. Switch over Kotlin sealed types with `onEnum(of:)`: no `as` casts and no `default:`, so a new Kotlin case breaks
    the Swift build.

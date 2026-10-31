@@ -40,8 +40,8 @@ These apps share their logic in Kotlin (KMP). Where this skill and the project's
 - Respect the app's deployment target and Swift language mode instead of assuming iOS 26 and Swift 6.2. APIs newer
   than the target go behind `if #available` with a fallback.
 - Check the target's default actor isolation in its build settings before judging `@MainActor` or `MainActor.run`.
-- Shared Kotlin ViewModels are held with `@StateViewModel` (KMP-ObservableViewModel). Don't flag them or ask for
-  `@Observable` on them; that rule is for Swift classes.
+- Shared Kotlin ViewModels are held with `@StateViewModel` (KMP-ObservableViewModel), and with `@ObservedViewModel`
+  where they are passed down. Don't flag them or ask for `@Observable` on them; that rule is for Swift classes.
 - The State only changes through an Intent (shared Kotlin ViewModels on iOS, `send(_:)` models on macOS), so a
   `Binding(get:set:)` that sends an Intent is required. It is correct when it's built once at the top of `body`; flag
   it only inside a subview.

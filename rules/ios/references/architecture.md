@@ -62,8 +62,9 @@ private func observeEffects() async {
 
 - Send user actions with `viewModel.handleIntent(intent:)`.
 - Never create a shared ViewModel yourself: Koin owns it.
-- Screens of the same flow share one instance: the first screen holds it and passes it down as
-  `let viewModel: FeatureViewModel`. A second `KoinHelper()` call would give a new, empty one.
+- Screens of the same flow share one instance: the first screen holds it and passes it down, and the screen below
+  holds it as `@ObservedViewModel var viewModel: FeatureViewModel`. A second `KoinHelper()` call would give a new,
+  empty one.
 
 ## What stays in the view and what moves
 
