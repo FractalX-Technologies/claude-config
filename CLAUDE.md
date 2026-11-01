@@ -87,6 +87,8 @@ My stack, projects and machine live in `~/.claude/personal.md`, outside the shar
 - **Commit only after I've tried it.** When a change is done: build it, install it where I try it (device,
   simulator or browser), say what to try, and stop. Commit and push once I say it's fine. A night run
   (`flow-sweet-dreams`) commits each phase on its branch, since nobody is there to try it.
+- A change to the global config (`~/.claude-config`: rules, skills, agents, hooks, this file) has nothing to try:
+  commit and push it to `main` as soon as it's made, from any session, whatever repo that session is in.
 - Past that OK, run `git` and `gh` without asking, on any branch, `main` included: commit, push, merge, rebase, pull
   requests and every other `gh` write.
 - Other sessions share my checkouts. Run `git status -sb` right before every `switch`, `commit` or `push`, and

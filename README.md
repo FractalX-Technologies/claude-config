@@ -42,7 +42,8 @@ By hand: `git -C ~/.claude-config pull && ~/.claude-config/install.sh`.
 ## Change something
 
 Everything in `~/.claude/` that came from here is a link into `~/.claude-config`, so editing a skill or rule
-edits the repo. Commit and push from there:
+edits the repo. Claude commits and pushes such a change as soon as it makes it, from any session (`CLAUDE.md` ›
+Git); an uncommitted change would also stop the auto-update above. By hand:
 
 ```bash
 cd ~/.claude-config
