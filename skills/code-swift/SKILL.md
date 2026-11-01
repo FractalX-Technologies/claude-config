@@ -35,6 +35,9 @@ Most "SwiftUI is doing something weird" is an identity problem.
   A delegate callback is not, which is why location and camera callbacks need `MainActor.assumeIsolated`.
 - **`assumeIsolated` asserts, it doesn't switch.** Use it only when you know you're on the main thread: if you're
   wrong, it crashes. When unsure, `await MainActor.run`.
+- **A view's method passed through a ternary** (`isOn ? delete : nil`) is `@MainActor` and doesn't convert to a plain
+  closure type there; the compiler only says "failed to produce diagnostic" on the whole `body`. Wrap it:
+  `{ delete($0) }`.
 - **`Task { }` inherits the actor and priority; `Task.detached { }` inherits neither.** Detached is almost always
   wrong.
 - **`.task { }` is cancelled when the view goes away; a `Task` started in `onAppear` is not.** A stored `Task` you

@@ -31,10 +31,10 @@ Swift Testing can't drive the UI, so UI tests are XCTest's XCUITest.
 - Only the critical flows, like on mobile: sign-in, anything the user can't undo, plus one smoke test.
 - Find elements by `.accessibilityIdentifier`, never by text or position.
 - Launch with an argument that swaps in fake repositories: no real network.
-- XCUITest can't resize a window by dragging its edge, and launch arguments don't set its frame. For a narrow layout,
-  tile the window from the menu bar (Window › Move & Resize › Left) and restore it with Return to Previous Size.
-  The tile outlives the app: a run stopped before the restore launches every later flow tiled. A suite that fails
-  only on layout checks after one, check the window's width first.
+- XCUITest can't resize a window by dragging its edge. For a narrow layout, tile the window from the menu bar
+  (Window › Move & Resize › Left) and restore it with Return to Previous Size. macOS saves the tile in the window's
+  saved frame (`NSWindow Frame <id>`), so a run that ends while tiled opens every later flow tiled: launch with
+  `-NSWindow Frame <id> ""` (the frame read empty) and each flow opens at the window's default size.
 - Drag with the mouse's API, `click(forDuration:thenDragTo:withVelocity:thenHoldForDuration:)`, from coordinates,
   holding a beat over the target. `press(forDuration:thenDragTo:)` is a touch and never starts a drag session.
 - A control in the title bar's band, under a unified toolbar, reads as not hittable: XCUITest's hit test meets the
