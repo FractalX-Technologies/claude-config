@@ -45,8 +45,11 @@ approachable concurrency.
   `withAnimation(motion, completionCriteria: .removed) { open } completion: { scrollTo }`. Asked in the same update,
   from `onChange` or from `onScrollGeometryChange`, the scroll stops at the old end.
 - A `ScrollView` resized inside an animation re-lays out its content at every width it passes through: an adaptive
-  grid's columns come and go, and its items bounce. Make room without animation
-  (`.transaction(value: isShown) { $0.animation = nil }` on the content beside it) and animate only what arrives.
+  grid's columns come and go, and its items bounce. Give the scroll its new width at once
+  (`.transaction(value: isShown) { $0.animation = nil }` on the `ScrollView`) and animate the content inside it
+  (`.animation(motion, value: isShown)`): the items glide once to their new places. When an item's own button starts
+  the change, send it a turn later (`Task { … }`): sent from the button's action, that item lands at once while the
+  others glide.
 - A row that reads as one ("Upload, Done") is `.accessibilityElement(children: .combine)`: its words join in its
   value. macOS drops `.accessibilityValue` on a group made with `.ignore`, and XCUITest reads only its label.
 
