@@ -54,6 +54,9 @@ let query = Binding(
 - Icon-only button: `Button("Label", systemImage: "xmark", action:)` + `.labelStyle(.iconOnly)`.
 - No `AnyView` (use `@ViewBuilder`). Prefer `containerRelativeFrame()` to `GeometryReader`.
 - Split a body into separate `View` structs, not computed `some View` properties.
+- A view added or removed with `if` in an animated layout change fades where it stands while its neighbours slide
+  across it. A column that comes and goes between moving neighbours stays in the tree: animate its width to zero,
+  `.clipped()`.
 
 ## Design tokens
 
