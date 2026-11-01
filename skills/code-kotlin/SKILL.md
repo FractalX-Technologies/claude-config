@@ -67,6 +67,10 @@ catch (e: Exception) { logger.e(e) { "scanner failed" } }
   with `%` escaped, and cover the `actual` with an `iosTest`.
 - `List<T>` reaches Swift as an `NSArray` and can lose its element type in some places: check the generated header
   before designing an API around nested generics.
+- A public name that a C header defines as a macro (`NAME_MAX`, `PATH_MAX`, `MIN`, `YES`) breaks the exported
+  Objective-C header: Swift stops with "property requires fields to be named". Pick another name (`NAME_LIMIT`).
+- A function whose name starts with `new` joins Objective-C's `new` family and reaches Swift renamed: start it with
+  another word (`productKind`, not `newProductKind`).
 
 ## Scope functions
 
