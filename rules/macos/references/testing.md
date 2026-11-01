@@ -33,6 +33,9 @@ Swift Testing can't drive the UI, so UI tests are XCTest's XCUITest.
 - Launch with an argument that swaps in fake repositories: no real network.
 - XCUITest can't resize a window by dragging its edge, and launch arguments don't set its frame. For a narrow layout,
   tile the window from the menu bar (Window › Move & Resize › Left) and restore it with Return to Previous Size.
+- A control in the title bar's band, under a unified toolbar, reads as not hittable: XCUITest's hit test meets the
+  toolbar first, though a real click reaches the control. Click its middle
+  (`coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()`) and assert what the click changed.
 
 ## Before a release
 
