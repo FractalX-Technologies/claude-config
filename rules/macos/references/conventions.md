@@ -41,6 +41,11 @@ approachable concurrency.
 - Drag and drop where it makes sense (`.draggable`, `.dropDestination`).
 - Pointer-sized controls and denser layouts than iOS; use the system control sizes.
 - AppKit only through `NSViewRepresentable` / `NSApplicationDelegateAdaptor`, when SwiftUI can't do it.
+- Scroll to content that just opened once its animation is over:
+  `withAnimation(motion, completionCriteria: .removed) { open } completion: { scrollTo }`. Asked in the same update,
+  from `onChange` or from `onScrollGeometryChange`, the scroll stops at the old end.
+- A row that reads as one ("Upload, Done") is `.accessibilityElement(children: .combine)`: its words join in its
+  value. macOS drops `.accessibilityValue` on a group made with `.ignore`, and XCUITest reads only its label.
 
 ## Liquid Glass (macOS 26)
 
