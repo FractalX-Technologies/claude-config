@@ -44,6 +44,9 @@ approachable concurrency.
 - Scroll to content that just opened once its animation is over:
   `withAnimation(motion, completionCriteria: .removed) { open } completion: { scrollTo }`. Asked in the same update,
   from `onChange` or from `onScrollGeometryChange`, the scroll stops at the old end.
+- A `ScrollView` resized inside an animation re-lays out its content at every width it passes through: an adaptive
+  grid's columns come and go, and its items bounce. Make room without animation
+  (`.transaction(value: isShown) { $0.animation = nil }` on the content beside it) and animate only what arrives.
 - A row that reads as one ("Upload, Done") is `.accessibilityElement(children: .combine)`: its words join in its
   value. macOS drops `.accessibilityValue` on a group made with `.ignore`, and XCUITest reads only its label.
 
