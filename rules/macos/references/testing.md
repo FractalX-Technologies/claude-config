@@ -33,6 +33,10 @@ Swift Testing can't drive the UI, so UI tests are XCTest's XCUITest.
 - Launch with an argument that swaps in fake repositories: no real network.
 - XCUITest can't resize a window by dragging its edge, and launch arguments don't set its frame. For a narrow layout,
   tile the window from the menu bar (Window › Move & Resize › Left) and restore it with Return to Previous Size.
+  The tile outlives the app: a run stopped before the restore launches every later flow tiled. A suite that fails
+  only on layout checks after one, check the window's width first.
+- Drag with the mouse's API, `click(forDuration:thenDragTo:withVelocity:thenHoldForDuration:)`, from coordinates,
+  holding a beat over the target. `press(forDuration:thenDragTo:)` is a touch and never starts a drag session.
 - A control in the title bar's band, under a unified toolbar, reads as not hittable: XCUITest's hit test meets the
   toolbar first, though a real click reaches the control. Click its middle
   (`coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()`) and assert what the click changed.

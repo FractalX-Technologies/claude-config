@@ -52,6 +52,8 @@ approachable concurrency.
   others glide.
 - A row that reads as one ("Upload, Done") is `.accessibilityElement(children: .combine)`: its words join in its
   value. macOS drops `.accessibilityValue` on a group made with `.ignore`, and XCUITest reads only its label.
+- A state trait (`.isSelected`) added inside a `ButtonStyle` is lost when the label is only an icon: VoiceOver never
+  says the row is selected. Put it on the `Button` too.
 
 ## Liquid Glass (macOS 26)
 
