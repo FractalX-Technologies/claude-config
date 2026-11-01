@@ -74,6 +74,7 @@ Most "SwiftUI is doing something weird" is an identity problem.
 - Switch over Kotlin enums and sealed types with every case and no `default:`. A `default:` lets a new Kotlin case
   compile on iOS and silently do nothing.
 - A Kotlin property that clashes with an `NSObject` member (`description`, `hash`) arrives renamed with a trailing
-  `_`: read `product.description_`. Plain `.description` compiles and shows the whole object's debug text.
+  `_`: read `product.description_`. Plain `.description` compiles and shows the whole object's debug text. Some
+  (`zone`) aren't renamed and can't be read at all: name a shared contract's fields away from NSObject's.
 - Kotlin dates are not `Date`: convert them in one extension, never inline.
 - A symbol missing after a Kotlin change means an old framework. Relink before changing any Swift.
