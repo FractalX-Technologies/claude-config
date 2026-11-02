@@ -77,6 +77,10 @@ catch (e: Exception) { logger.e(e) { "scanner failed" } }
 `let` for nullable chains, `apply` to configure an object, `also` for a side effect that keeps the value. `run` and
 `with` mostly make code harder to search. Three chained scope functions are one function that wants a name.
 
+A lambda with a receiver shadows the class around it: in a reducer that takes the State as receiver
+(`updateState { copy(...) }`), a ViewModel field named like a State property, computed ones included, reads the
+State's. Name ViewModel fields apart from the State's properties.
+
 Inside a lambda with a receiver, an unqualified name is the receiver's first. In `updateState { copy(failure = failure) }`
 the right side is the State's own `failure`, not the ViewModel's property of that name, so the field never changes.
 Read the property into a local before the lambda, or qualify it with `this@MyViewModel`.
