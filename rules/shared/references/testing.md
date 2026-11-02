@@ -22,6 +22,8 @@ paths:
 - **It fails before the change and passes after.** Check it: put the bug back and watch the test go red. A test never
   seen red is a claim, not a check. Put the bug back on a copy, or when no other agent reads those files: a reviewer
   reading the mutant reports it as a real bug.
+- Tests written after the code get the same check: run them against a copy of the code from before the change, then
+  break what stays green one line at a time. A few mutants prove those tests, not the others: report the count.
 - It checks what can be observed (the new state, the emitted effect, the status code), not that a private method was
   called.
 - It is deterministic: no real network, clock, Keychain or `sleep`.
