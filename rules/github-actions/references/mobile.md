@@ -8,21 +8,22 @@ paths:
 
 # Mobile pipelines (Android and iOS)
 
-Where the shared template has mobile callers (`mobile/kmp/`: CI and store deploy for apps with native screens on
-shared Kotlin), the app copies them like any other caller. The template also holds the fastlane lanes: the app's
-`Fastfile` only imports them (`import_from_git`, pinned to the same release as the callers, moved together), and
-`fastlane/app.yml` describes the app. `version:` takes the release's number, `"1.3.0"` for `@v1.3.0`: fastlane reads an
-exact version requirement and rejects the `v`. An app the template doesn't cover has its own `mobile-deploy` workflow (a job
-per platform) built the same way, and it moves into the template once a second app needs it.
+A Kotlin Multiplatform app copies the client app template's callers (`examples/mobile/.github/`: `mobile.yml`, the
+release, pull request and Release to store callers) and pins them to a release tag; its `Fastfile` only imports the
+template's lanes (`import Fastlane::KmpMobile::LANES`), with the plugin pinned in the `Gemfile` at the **same tag**
+(moved together: the setup step checks they agree), and `.github/mobile.yml` names the environments and the ladder.
+Everything else (names, inputs, the order of work) is the template's README and `docs/adopting.md` at that tag: the
+`flow-pipelines` skill. An app the template doesn't cover has its own `mobile-deploy` workflow (a job per platform)
+built the same way, and it moves into the template once a second app needs it.
 
 ## Shape
 
-- The lanes do the work (`build_release` and an upload lane per store); the workflow only prepares the machine,
-  passes secrets and calls the lane.
-- Builds run on `push` to the release branches and on `workflow_dispatch`.
+- The lanes do the work; the workflow only prepares the machine, passes secrets and calls the lane.
+- A merge to `main` ships the ladder's first rung; a promotion (Actions → Release) climbs one rung with the same
+  version; the ladder's last rung is the store's test track or the MDM, and Release to store takes it from there.
 - The shared core is checked out next to the app (`../<core>`) at a configured ref, because apps build it from source.
-- Builds go to the stores' test tracks (Play internal testing, TestFlight); promotion to production happens in the
-  store consoles.
+- Without Maestro flows an app declares `maestro: false` in `mobile.yml`; with them, a pull request runs the smoke
+  flows and a promotion needs the merge's full run green.
 
 ## Signing
 

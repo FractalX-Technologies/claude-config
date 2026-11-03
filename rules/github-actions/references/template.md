@@ -6,14 +6,15 @@ paths:
 # The shared pipeline template
 
 The template's README is the reference (every input, the Azure roles, troubleshooting): read it at the tag the repo
-pins. This file holds what to decide before copying anything.
+pins. This file holds what to decide before copying anything. Client apps (mobile, desktop) have their own template,
+with a runbook an agent follows: the `flow-pipelines` skill.
 
 ## Pick the callers
 
 | Workload | Callers |
 |---|---|
 | Backend in an Azure Container App | `callers/backend/containerapp/` (build and deploy, promote, rollback) |
-| Mobile app, native screens on shared Kotlin | `callers/mobile/kmp/` (CI, store deploy), plus the template's fastlane lanes ([mobile](mobile.md)) |
+| Mobile app (Kotlin Multiplatform) or Electron desktop app | The client app template's `examples/<kind>/.github/`, its fastlane lanes and its runbook `docs/adopting.md` ([mobile](mobile.md), the `flow-pipelines` skill) |
 
 Copy them into `.github/workflows/`, edit only their `with:` block (service, image, resource names with `{0}` for the
 environment), and pin the template to its release tag.
@@ -48,7 +49,8 @@ environment), and pin the template to its release tag.
 - Backend: repo variable `AZURE_TENANT_ID`; per GitHub Environment (`Development`, `Production`), `AZURE_CLIENT_ID`
   and `AZURE_SUBSCRIPTION_ID`, plus `AZURE_PROMOTION_SOURCE_SUBSCRIPTION_ID` on an environment that is promoted into.
   The deployer identities and their roles come from the platform IaC repo.
-- Mobile: the CI GitHub App and the `Mobile stores` environment ([mobile](mobile.md), the template's README).
+- Mobile and desktop: the client app template's runbook (`docs/adopting.md`) lists the environments, the names and what
+  only the owner provides ([mobile](mobile.md)).
 - `Production`'s gate is a required reviewer where the GitHub plan offers one (not on private repos below
   Enterprise); otherwise the manual promote run is the gate.
 - The calling job grants what the template's jobs need (`contents: write` and `id-token: write` for build and promote),
