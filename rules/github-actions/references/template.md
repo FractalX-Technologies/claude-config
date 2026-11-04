@@ -14,11 +14,12 @@ repo pins. This file holds what to decide before copying anything.
 
 | Workload | Callers |
 |---|---|
-| Backend in an Azure Container App | `examples/backend/.github/workflows/` (build and deploy, promote, rollback) |
+| Backend in an Azure Container App | `examples/backend/.github/`: one caller, `backend-release.yml` (a merge, a promotion and a rollback), and `backend.yml`, the rungs |
 | Mobile app (Kotlin Multiplatform) or Electron desktop app | `examples/<kind>/.github/`, the fastlane plugin's lanes and the runbook `docs/adopting.md` ([mobile](mobile.md), the `flow-pipelines` skill) |
 
-Copy them into `.github/workflows/`, edit only their `with:` block (service, image, resource names with `{0}` for the
-environment), and pin the template to its release tag.
+Copy them into `.github/`, edit only the caller's `with:` block (the Dockerfile's folder, the image name, the health
+path; an app's root), declare the rungs in the `.github/<kind>.yml`, and pin the template to its release tag. The
+runbook `docs/adopting.md` is for every kind, the backend included.
 
 ## Version markers (in the pull request title)
 
@@ -32,31 +33,37 @@ environment), and pin the template to its release tag.
 ## The ladder
 
 ```
-<service>-X.Y.Z-dev  ─promote→  <service>-X.Y.Z-prd
+backend-X.Y.Z-dev  ─promote→  backend-X.Y.Z-prd        (the rungs of .github/backend.yml, any number, any ids)
 ```
 
-- A merge to `main` that touches the service builds one image, deploys it to dev by digest and tags
-  `<service>-X.Y.Z-dev`, only if dev is healthy.
-- **Promote** (Actions tab, with `X.Y.Z`) imports that same digest into the next environment's registry and deploys
-  it. Only a version built on the default branch climbs; nothing is rebuilt.
-- **Rollback** redeploys the newest earlier digest the environment ran, never one older than `oldest_version`. It runs
-  no migration.
-- With `migration_job_name`, the environment's Container Apps Job runs the same digest before the deploy and must
-  succeed, or nothing is deployed or tagged. Migrations are additive: the running version keeps serving meanwhile.
+- A merge to `main` that touches the service builds one image, deploys it to the first rung by digest and tags
+  `backend-X.Y.Z-<rung>` with `digest: sha256:…` in the message, only once the rung is healthy (its newest revision
+  ready and the health path answering).
+- **Promote** (Actions → Backend release → an environment, with `X.Y.Z` or the newest below) imports the digest the
+  rung below's tag records into this rung's registry and deploys it. Only a version built on the default branch
+  climbs, never skipping a rung; nothing is rebuilt; a tag without a digest (before the ladder, or by hand) cannot
+  climb: ship the code as a new merge.
+- **Rollback** on any rung (`rollback_to X.Y.Z`, a version that reached it) redeploys that version's recorded digest
+  as a new version. It runs no migration. The last rung only moves up: promoting a version older than its newest is
+  refused.
+- With the rung's `MIGRATION_JOB_NAME` variable, that Container Apps Job runs the same digest before the deploy and
+  must succeed, or nothing is deployed or tagged. Migrations are additive: the running version keeps serving meanwhile.
 - What an environment runs is its deployed image, not the newest git tag.
 
 ## Setup per repo, once
 
-- Backend: the names of the template's `docs/settings.md` (repo variable `AZURE_TENANT_ID`; per GitHub Environment,
-  `Development` and `Production`, `AZURE_CLIENT_ID` and `AZURE_SUBSCRIPTION_ID`, plus
-  `AZURE_PROMOTION_SOURCE_SUBSCRIPTION_ID` on an environment that is promoted into). The deployer identities and their
-  roles (`docs/backend.md`) come from the platform IaC repo.
+- Backend: the names of the template's `docs/settings.md` § A backend's rungs: repo variable `AZURE_TENANT_ID`; on
+  each rung's GitHub environment, `AZURE_CLIENT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_NAME`, `CONTAINER_APP_NAME`,
+  `RESOURCE_GROUP`, `MIGRATION_JOB_NAME` (a database) and, on a rung promoted into, `PROMOTION_SOURCE_REGISTRY_ID`
+  (the rung below's registry resource id). The deployer identities and their roles (`docs/backend.md`: AcrPush on
+  the first rung, Data Importer and Reader on both registries for a promotion, Container Apps Contributor, Jobs
+  Contributor) come from the platform IaC repo.
 - Mobile and desktop: the template's runbook (`docs/adopting.md`) lists the environments, the names and what only the
   owner provides ([mobile](mobile.md)).
 - `Production`'s gate is a required reviewer where the GitHub plan offers one (not on private repos below
   Enterprise); otherwise the manual promote run is the gate.
-- The calling job grants what the template's jobs need (`contents: write` and `id-token: write` for build and promote),
-  or GitHub refuses the run.
+- The calling job grants what the template's jobs need (the example's `contents: write`, `pull-requests: read` and
+  `id-token: write`), or GitHub refuses the run.
 
 ## When the template doesn't cover it
 
