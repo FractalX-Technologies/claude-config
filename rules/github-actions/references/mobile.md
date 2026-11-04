@@ -8,7 +8,7 @@ paths:
 
 # Mobile pipelines (Android and iOS)
 
-A Kotlin Multiplatform app copies the client app template's callers (`examples/mobile/.github/`: `mobile.yml`, the
+A Kotlin Multiplatform app copies the template's callers (`examples/mobile/.github/`: `mobile.yml`, the
 release, pull request and Release to store callers) and pins them to a release tag; its `Fastfile` only imports the
 template's lanes (`import Fastlane::KmpMobile::LANES`), with the plugin pinned in the `Gemfile` at the **same tag**
 (moved together: the setup step checks they agree), and `.github/mobile.yml` names the environments and the ladder.
