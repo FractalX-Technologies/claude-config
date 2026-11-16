@@ -39,7 +39,7 @@ the Mac on power with the lid open and the screen lock off.
 ## 2. Night (work alone)
 
 1. `caffeinate -dims -t 43200` in the background.
-2. One branch for the night, in a new worktree off `main` (`git worktree add -b <branch> ../<repo>-night main`).
+2. One branch for the night, in a new worktree off `main` named `night` (how: `CLAUDE.md` › Git).
    Work that can't share it (another repo) gets its own branch.
 3. Each phase, in order:
    1. Tests first, seen red: unit, and an **e2e** flow for every change a user can see (Maestro on Android and iOS,

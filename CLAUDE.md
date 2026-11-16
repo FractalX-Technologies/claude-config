@@ -92,7 +92,9 @@ My stack, projects and machine live in `~/.claude/personal.md`, outside the shar
 - Past that OK, run `git` and `gh` without asking, on any branch, `main` included: commit, push, merge, rebase, pull
   requests and every other `gh` write.
 - Other sessions share my checkouts. Run `git status -sb` right before every `switch`, `commit` or `push`, and
-  start new work in a worktree off `main` (`git worktree add -b <branch> ../<repo>-<topic> main`).
+  start new work in a worktree off `main`. Orca creates it, in its own workspace folder outside the repo
+  (`orca worktree create --repo path:<repo> --name <topic> --base-branch main`); where Orca isn't running,
+  `git worktree add -b <branch> ../<repo>-<topic> main`.
 - To check whether an error is pre-existing, don't `git stash`: read `git show HEAD:<path>` or
   `git diff -- <files you didn't touch>`.
 - Never create or push a tag, or start a release, unless I ask.
