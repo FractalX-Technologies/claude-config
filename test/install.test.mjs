@@ -22,11 +22,39 @@ function home(files = {}) {
   return dir;
 }
 
-function install(homeDir, args = [], kit = KIT) {
-  const r = spawnSync('bash', [path.join(kit, 'install.sh'), ...args], { encoding: 'utf8', env: { ...process.env, HOME: homeDir } });
+// No test may reach the real ~/.claude.json: the claude CLI is a path that doesn't exist unless a test passes fakeCli(),
+// and CLAUDE_CONFIG_DIR is dropped so a second-account shell can't point the scripts at its own config.
+const { CLAUDE_CONFIG_DIR: _dropped, ...baseEnv } = process.env;
+const envFor = (homeDir, extra = {}) => ({ ...baseEnv, HOME: homeDir, CLAUDE_CLI: path.join(homeDir, 'no-claude-cli'), ...extra });
+
+function install(homeDir, args = [], kit = KIT, env = {}) {
+  const r = spawnSync('bash', [path.join(kit, 'install.sh'), ...args], { encoding: 'utf8', env: envFor(homeDir, env) });
   assert.equal(r.status, 0, r.stderr);
   return r;
 }
+
+// A stand-in for the claude CLI: applies `mcp add-json` and `mcp remove` to the home's .claude.json and logs each call.
+function fakeCli(homeDir) {
+  const bin = path.join(homeDir, 'fake-claude');
+  writeFileSync(bin, `#!/usr/bin/env bash
+f="$HOME/.claude.json"; [ -f "$f" ] || echo '{}' > "$f"
+echo "$*" >> "$HOME/claude-calls.log"
+[ "$1 $3 $4" = "mcp --scope user" ] || exit 2
+case "$2" in
+  add-json) jq --arg n "$5" --argjson c "$6" '.mcpServers[$n] = $c' "$f" > "$f.tmp" && mv "$f.tmp" "$f" ;;
+  remove) jq --arg n "$5" 'del(.mcpServers[$n])' "$f" > "$f.tmp" && mv "$f.tmp" "$f" ;;
+  *) exit 2 ;;
+esac
+`, { mode: 0o755 });
+  return { CLAUDE_CLI: bin };
+}
+
+const userConfigOf = (homeDir) => JSON.parse(readFileSync(path.join(homeDir, '.claude.json'), 'utf8'));
+const cliCalls = (homeDir) => {
+  const log = path.join(homeDir, 'claude-calls.log');
+  return existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [];
+};
+const kitMcp = (kit = KIT) => JSON.parse(readFileSync(path.join(kit, 'mcp/servers.json'), 'utf8'));
 
 const settingsOf = (homeDir) => JSON.parse(readFileSync(path.join(homeDir, '.claude/settings.json'), 'utf8'));
 const commands = (settings, event) => (settings.hooks?.[event] ?? []).flatMap((g) => g.hooks.map((h) => h.command));
@@ -94,6 +122,42 @@ test('uninstall removes only the kit links and hooks', () => {
   assert.ok(existsSync(path.join(h, '.claude/personal.md')));
 });
 
+test('install registers every MCP server of mcp/servers.json for the user, once, and keeps the rest of .claude.json', () => {
+  const mine = { type: 'http', url: 'https://example.com/mcp' };
+  const h = home({ '.claude.json': JSON.stringify({ numStartups: 3, mcpServers: { mine } }) });
+  const cli = fakeCli(h);
+  install(h, [], KIT, cli);
+  assert.deepEqual(userConfigOf(h), { numStartups: 3, mcpServers: { mine, ...kitMcp() } });
+  assert.equal(cliCalls(h).length, Object.keys(kitMcp()).length);
+  install(h, [], KIT, cli);
+  assert.equal(cliCalls(h).length, Object.keys(kitMcp()).length, 'a second run called the CLI again');
+});
+
+test('install keeps a server of yours that has a kit name, and uninstall removes only the servers the kit registered', () => {
+  const [name] = Object.keys(kitMcp());
+  const own = { type: 'http', url: 'https://example.com/my-own' };
+  const kept = home({ '.claude.json': JSON.stringify({ mcpServers: { [name]: own } }) });
+  const r = install(kept, [], KIT, fakeCli(kept));
+  assert.match(r.stdout, new RegExp(`kept your own MCP server ${name}`));
+  install(kept, ['--uninstall'], KIT, fakeCli(kept));
+  assert.deepEqual(userConfigOf(kept).mcpServers, { [name]: own });
+  assert.deepEqual(cliCalls(kept), []);
+
+  const mine = { type: 'http', url: 'https://example.com/mcp' };
+  const h = home({ '.claude.json': JSON.stringify({ mcpServers: { mine } }) });
+  install(h, [], KIT, fakeCli(h));
+  install(h, ['--uninstall'], KIT, fakeCli(h));
+  assert.deepEqual(userConfigOf(h).mcpServers, { mine });
+});
+
+test('install without the claude CLI still succeeds and names the servers it skipped', () => {
+  const h = home();
+  const r = install(h);
+  for (const name of Object.keys(kitMcp())) assert.match(r.stdout, new RegExp(`skipped MCP server ${name}`));
+  assert.ok(!existsSync(path.join(h, '.claude.json')));
+  assert.equal(readlinkSync(path.join(h, '.claude/rules')), path.join(KIT, 'rules'));
+});
+
 // A published repo, a friend's clone of it installed in a fresh home, and the maintainer's clone to push from.
 function published() {
   const root = tmp('claude-config-git-');
@@ -121,7 +185,7 @@ function published() {
 }
 
 const update = (kit, h, env = {}) =>
-  spawnSync('bash', [path.join(kit, 'scripts/update.sh')], { input: '{}', encoding: 'utf8', env: { ...process.env, HOME: h, ...env } });
+  spawnSync('bash', [path.join(kit, 'scripts/update.sh')], { input: '{}', encoding: 'utf8', env: envFor(h, env) });
 
 async function eventually(check, ms = 15000) {
   const end = Date.now() + ms;

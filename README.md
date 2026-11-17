@@ -1,6 +1,7 @@
 # claude-config
 
-A shared Claude Code setup: global instructions, rules per stack, skills, review subagents and guard hooks.
+A shared Claude Code setup: global instructions, rules per stack, skills, review subagents, guard hooks and MCP
+servers.
 Install it once and it keeps itself up to date.
 
 ## What's inside
@@ -12,6 +13,7 @@ Install it once and it keeps itself up to date.
 | `skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](hooks/README.md) |
+| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs`: search and read Infisical's documentation, no account |
 
 Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `CLAUDE.md` imports and which
 never leaves your machine.
@@ -27,8 +29,9 @@ git clone https://github.com/FractalX-Technologies/claude-config.git ~/.claude-c
 
 Then restart Claude Code, check `/hooks`, and write your stack in `~/.claude/personal.md`.
 
-`install.sh` links each item above into `~/.claude/` and appends the hooks to `~/.claude/settings.json`. Your own
-settings, hooks and skills stay. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to
+`install.sh` links each item above into `~/.claude/`, appends the hooks to `~/.claude/settings.json` and registers
+the MCP servers with `claude mcp add-json --scope user`. Your own settings, hooks, skills and MCP servers stay: a
+server of yours with the same name is left as it is. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to
 `~/.claude/backups/claude-config-<date>/`.
 
 ## Updates
@@ -53,18 +56,32 @@ git commit -am "feat(skills): …" && git push
 
 Everyone else gets it within a few hours. Friends who want their own changes: fork the repo and clone the fork.
 
+### Add an MCP server
+
+Add it to `mcp/servers.json` under its name, in the shape `claude mcp add-json` takes:
+
+```json
+{ "infisical-docs": { "type": "http", "url": "https://infisical.com/docs/mcp" } }
+```
+
+- Only servers that need no credential go there: the file is public and applied on every machine.
+- One that needs a token or a client secret (Infisical's `@infisical/mcp`, which reads and writes secrets) is added
+  by hand on each machine with `claude mcp add --scope user`, from a terminal outside a Claude session.
+- A changed entry doesn't replace one already registered: remove the old one first (`claude mcp remove <name>`).
+
 ## Uninstall
 
 ```bash
 ~/.claude-config/install.sh --uninstall
 ```
 
-Removes the links and the hooks it added; your backups and `personal.md` stay.
+Removes the links, the hooks and the MCP servers it added; your backups and `personal.md` stay.
 
 ## Notes
 
 - Built for the Claude Code CLI. Cowork sessions skip a symlinked `CLAUDE.md` and rules folder.
-- An update runs whatever lands on `main`, hooks included: only people you trust should be able to push there.
+- An update runs whatever lands on `main`, hooks and MCP servers included: only people you trust should be able to
+  push there.
 - Some skills are adapted from public MIT-licensed skills (for example `code-nestjs` by Jeffallan, `motion-design`
   by LottieFiles); each `SKILL.md` keeps its license and author in its frontmatter. Everything else is under the
   [MIT license](LICENSE).
