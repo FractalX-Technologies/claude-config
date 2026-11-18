@@ -28,7 +28,10 @@ Every project root (`projects/<app>/`) has the same files, plus one file per are
 terraform {
   required_version = ">= 1.11"
   required_providers {
-    azurerm = { source = "hashicorp/azurerm", version = "5.8.0" }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "5.8.0"
+    }
   }
   backend "azurerm" {} # per environment: terraform init -backend-config=backend/<env>.hcl
 }
@@ -43,6 +46,9 @@ provider "azurerm" {
 - The subscription comes from `ARM_SUBSCRIPTION_ID`, set per environment by the pipeline: never in code.
 - Pin providers exactly, and commit `.terraform.lock.hcl` with the platforms CI and laptops use, so every run uses the
   same provider builds.
+- Each provider is declared as a block, its `version` on a line of its own, in roots and modules alike. Dependabot
+  rewrites a version only where `version = "…"` starts a line: on an inline `{ source = …, version = … }` its job
+  finds the new release, changes nothing and fails with `Content didn't change!`.
 - A major provider upgrade (azurerm 4 → 5) is a planned change of its own, with its upgrade guide read first. It
   never rides along with a feature.
 

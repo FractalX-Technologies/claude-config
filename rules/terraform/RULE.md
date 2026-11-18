@@ -8,8 +8,8 @@ paths:
 # Terraform
 
 Infrastructure on Azure with Terraform, all in the **platform IaC repo**: one root per project, its state and values
-per environment, and the modules beside it. App repos hold no Terraform: the platform sets an app's settings on its
-container.
+per environment, and the modules beside it. The Auth0 tenant is one of those roots. App repos hold no Terraform: the
+platform sets an app's settings on its container.
 
 ## Never break these
 
@@ -25,7 +25,8 @@ container.
 6. Versions are pinned: Terraform and providers exactly, `.terraform.lock.hcl` committed. Modules live in `modules/`,
    sourced by path; once a second repo needs one, it moves to a modules repo, pinned by tag (`?ref=vX.Y.Z`).
 7. CI signs in to Azure with OIDC, never with a client secret. Pull request plans use a read-only identity and take no
-   state lock. Each environment has its own apply identity, limited to its own subscription and state container.
+   state lock. Each environment has its own apply identity, limited to its own subscription and state container. The
+   one exception is Auth0, which has no OIDC for CI: [`auth0.md`](references/auth0.md).
 8. A service identity gets roles on named resources, never Contributor on a resource group: it could read secrets and
    rewrite apps.
 9. `terraform fmt -check` and `terraform validate` are clean: run them locally after `terraform init -backend=false`,
@@ -39,5 +40,6 @@ container.
 |---|---|---|
 | [`code.md`](references/code.md) | files, providers, modules, variables, names and tags, lifecycle, app settings, security | Terraform code |
 | [`workflow.md`](references/workflow.md) | how a change ships, a new project, drift, locks, the pull request checklist | Terraform code |
+| [`auth0.md`](references/auth0.md) | the Auth0 tenant: its root, an app's module, the client secret CI signs in with, what stays by hand | the tenant's root and modules |
 
 `code-terraform` covers Terraform depth. If a skill and a rule disagree, the rule wins: say so.
