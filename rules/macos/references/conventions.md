@@ -33,6 +33,9 @@ approachable concurrency.
 - Everything works with the keyboard alone: focus with `@FocusState` and `.focusable()`.
 - Focus the next step's field once the leaving step's transition ends (a `.task(id:)` that waits as long as the exit).
   Set at once, macOS hands the focus to the view that is leaving.
+- A `TextField` writes its binding back, unchanged, as it takes the keyboard. An Intent that carries a field's text
+  does nothing when the text is the one the State holds, or "typing clears the error" wipes a message the moment the
+  field is focused.
 
 ## Mac behaviour
 
@@ -41,6 +44,9 @@ approachable concurrency.
 - Drag and drop where it makes sense (`.draggable`, `.dropDestination`).
 - Pointer-sized controls and denser layouts than iOS; use the system control sizes.
 - AppKit only through `NSViewRepresentable` / `NSApplicationDelegateAdaptor`, when SwiftUI can't do it.
+- A screen removed with a transition and shown again before the transition ends comes back as it was, state and
+  ViewModel included, and its `.task` doesn't run again. A screen that must start over each time it shows (sign-in
+  after a refusal) is keyed on a number its owner's State changes each time it comes to show: `.id(state.<screen>Id)`.
 - Scroll to content that just opened once its animation is over:
   `withAnimation(motion, completionCriteria: .removed) { open } completion: { scrollTo }`. Asked in the same update,
   from `onChange` or from `onScrollGeometryChange`, the scroll stops at the old end.
