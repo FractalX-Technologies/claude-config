@@ -15,7 +15,7 @@ the tag the repo pins. This file holds what to decide before copying anything.
 
 | Workload | Callers |
 |---|---|
-| Backend in an Azure Container App | `examples/backend/.github/`: one caller, `backend-release.yml` (a merge, a promotion and a rollback), and `backend.yml`, the rungs |
+| Backend in an Azure Container App | `examples/backend/.github/`: two callers, `backend-release.yml` (a merge, a promotion and a rollback) and `backend-pr.yml` (a pull request's lint, tests, build, migrations run twice, database tests and image build, with no secret; tests that run a system tool run in the Dockerfile's base image, since the runner's version differs), and `backend.yml`, the rungs |
 | Mobile app (Kotlin Multiplatform) or Electron desktop app | `examples/<kind>/.github/`, the fastlane plugin's lanes and the runbook `docs/adopting.md` ([mobile](mobile.md), the `flow-pipelines` skill) |
 | Native macOS app, outside the App Store | `examples/macos/.github/`: `desktop.yml` with a `macos` section and the `macos-release.yml` caller, the plugin's `mac` lanes, the same runbook ([macOS distribution](../../macos/references/distribution.md)) |
 
