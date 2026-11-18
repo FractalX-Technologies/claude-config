@@ -69,6 +69,24 @@ Add it to `mcp/servers.json` under its name, in the shape `claude mcp add-json` 
   by hand on each machine with `claude mcp add --scope user`, from a terminal outside a Claude session.
 - A changed entry doesn't replace one already registered: remove the old one first (`claude mcp remove <name>`).
 
+### Auth0
+
+The Auth0 MCP server reads the tenant: applications, APIs, Actions, forms and, above all, its logs when a sign-in
+fails. It never writes: there is one tenant, production's, and every change to it is Terraform code in the platform
+IaC repo (`projects/auth0`), applied by its pipeline.
+
+Each person adds it once, from a terminal outside a Claude session:
+
+```bash
+npx @auth0/auth0-mcp-server init --client claude-code --read-only --scopes 'read:*'
+```
+
+- Pick **User** scope (`~/.claude.json`), never Project (`.mcp.json`, which gets committed).
+- The browser opens to sign in and pick the tenant; the token stays in the macOS keychain.
+- Three locks, each enough alone: the token's scopes only read, `--read-only` hides the tools that write, and the
+  `auth0-read-only` hook refuses any of them that is still there.
+- `npx @auth0/auth0-mcp-server session` shows who is signed in; `logout` ends it.
+
 ## Uninstall
 
 ```bash
