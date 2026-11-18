@@ -51,3 +51,6 @@ Swift Testing can't drive the UI, so UI tests are XCTest's XCUITest.
 ```bash
 xcodebuild test -project macosApp/<App>.xcodeproj -scheme <App> -destination 'platform=macOS'
 ```
+
+- UI tests drive the real pointer and keyboard of the Mac they run on. On a Mac someone is using, run one class or
+  flow (`-only-testing:<Target>/<Class>`), with a `-derivedDataPath` of its own: global `CLAUDE.md` › My machine.

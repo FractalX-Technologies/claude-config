@@ -81,6 +81,9 @@ My stack, projects and machine live in `~/.claude/personal.md`, outside the shar
   into their output folders: use another configuration and a free port, and ask before `docker compose up` (it
   recreates my containers). Before moving, renaming or deleting a project folder, check `ps`/`lsof` for a live
   process.
+- A UI suite that takes this Mac's keyboard and screen (XCUITest on a Mac app) runs only for the screens the change
+  touches, after saying how long it will hold them. Ask before the whole suite, and write what it left unrun as owed
+  in `tasks/waivers.md`.
 
 ## Git
 

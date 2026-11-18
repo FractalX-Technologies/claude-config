@@ -41,6 +41,8 @@ For the slice in front of you, and only that one:
    Electron, Maestro for mobile), with the data safety in [`E2E-SAFETY.md`](E2E-SAFETY.md): read it before the first
    e2e of a session.
    - The full suite **once**, then the flows of the screens the slice touches a **second** time.
+     A suite that takes the user's keyboard and screen: the touched screens' flows only (global `CLAUDE.md` › My
+     machine).
    - Every build first, then the platforms' suites side by side. A flow that fails only while the other suite runs
      waits on time, not on the screen: fix the flow.
    - A slice that changes nothing a flow sees or does (colors, radii, shadows, docs) skips the e2e: its unit tests
