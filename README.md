@@ -86,6 +86,9 @@ npx @auth0/auth0-mcp-server init --client claude-code --read-only --scopes 'read
 - Three locks, each enough alone: the token's scopes only read, `--read-only` hides the tools that write, and the
   `auth0-read-only` hook refuses any of them that is still there.
 - `npx @auth0/auth0-mcp-server session` shows who is signed in; `logout` ends it.
+- `init` writes `~/.claude.json` only. A Claude profile with its own `CLAUDE_CONFIG_DIR` (Orca's account switcher)
+  doesn't read it: copy the entry with `claude mcp add-json --scope user auth0 "$(jq -c .mcpServers.auth0 ~/.claude.json)"`
+  from a terminal of that profile.
 
 ## Uninstall
 
