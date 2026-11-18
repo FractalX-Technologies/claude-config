@@ -16,6 +16,7 @@ repo pins. This file holds what to decide before copying anything.
 |---|---|
 | Backend in an Azure Container App | `examples/backend/.github/`: one caller, `backend-release.yml` (a merge, a promotion and a rollback), and `backend.yml`, the rungs |
 | Mobile app (Kotlin Multiplatform) or Electron desktop app | `examples/<kind>/.github/`, the fastlane plugin's lanes and the runbook `docs/adopting.md` ([mobile](mobile.md), the `flow-pipelines` skill) |
+| Native macOS app, outside the App Store | `examples/macos/.github/`: `desktop.yml` with a `macos` section and the `macos-release.yml` caller, the plugin's `mac` lanes, the same runbook ([macOS distribution](../../macos/references/distribution.md)) |
 
 Copy them into `.github/`, edit only the caller's `with:` block (the Dockerfile's folder, the image name, the health
 path; an app's root), declare the rungs in the `.github/<kind>.yml`, and pin the template to its release tag. The
@@ -67,6 +68,6 @@ backend-X.Y.Z-dev  ─promote→  backend-X.Y.Z-prd        (the rungs of .github
 
 ## When the template doesn't cover it
 
-A mobile app of another shape and macOS apps have their own workflows ([mobile](mobile.md)). A new kind of service
+A mobile app of another shape has its own workflows ([mobile](mobile.md)). A new kind of service
 starts from the template's conventions (the version markers, the ladder, OIDC, environments) and, once a second repo
 needs it, moves into the template instead of being copied.

@@ -31,7 +31,7 @@ cask "<app>" do
   version "1.4.0"
   sha256 "…"
 
-  url "https://github.com/<org>/<repo>/releases/download/v#{version}/<App>-#{version}.zip"
+  url "https://github.com/<org>/<repo>/releases/download/macos-#{version}-prd/<App>-#{version}.dmg"
   name "<App>"
   desc "One sentence on what it does"
   homepage "https://github.com/<org>/<repo>"
@@ -50,7 +50,8 @@ end
 
 - Users install it with `brew install --cask <org>/<tap>/<app>`.
 - Each release updates `version` and `sha256` in the same pull request as the release, never by hand later.
-- The download comes from our own release, never a mirror.
+- The download comes from our own release, never a mirror: the pipeline's last rung (`macos-X.Y.Z-prd`), in a public
+  repository. A private repository's release can't feed a cask: its app is handed out by the release's link.
 
 ## Updates
 
@@ -61,18 +62,22 @@ end
 
 ## Release pipeline (GitHub Actions)
 
-The shared pipeline template has no macOS workflow yet, so a macOS app has its own, on a macOS runner, following the
-[GitHub Actions rules](../../github-actions/RULE.md):
+The shared pipeline template releases a native macOS app (`macos-release.yml` and the `mac` lanes, since v3.4.0): put
+the app on it with the `flow-pipelines` skill. An app has no release script and no release workflow of its own.
 
-1. Build and test.
-2. Archive, sign, notarize, staple, verify.
-3. Upload the ZIP or DMG to the GitHub release.
-4. Update the cask (and the appcast with Sparkle).
+1. A merge's build job archives ad hoc, with no certificate in reach.
+2. A second job signs with Developer ID, notarizes and staples the app and its DMG, and holds both to the template's
+   app check (version, entitlements, Gatekeeper).
+3. The DMG ships as a release of the app's repository, tagged by the pipeline: a pre-release below the last rung, the
+   latest release on it.
 
-- The certificate, the notarization key and the Sparkle key are repository secrets, passed as environment variables.
-- When a second macOS app needs this, move it into the shared pipeline template instead of copying it.
+- The certificate and the notarization key are the owner's secrets, in the rung's GitHub environment and the
+  organisation, under the template's names (`docs/settings.md`).
+- What the template doesn't do yet (nested code such as Sparkle's helpers, the cask's update, a pull request check)
+  moves into the template when an app needs it, never into the app's own scripts.
 
 ## Versions
 
 `CFBundleShortVersionString` is the version users see (`1.4.0`); `CFBundleVersion` is the build number and always
-goes up. The release tag is `v<version>`.
+goes up. Both come from the pipeline, as build settings: the version from the pull request's title, the build number
+from the clock. The release tag is the pipeline's, `macos-X.Y.Z-<rung>`, never made by hand.

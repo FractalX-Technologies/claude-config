@@ -43,4 +43,5 @@ for just those repos, never a personal token. Git gets it as an `http.extraheade
 
 ## macOS apps
 
-Signing, notarization and the Homebrew cask: [macOS distribution](../../macos/references/distribution.md).
+The template's macOS release, signing, notarization and the Homebrew cask:
+[macOS distribution](../../macos/references/distribution.md).

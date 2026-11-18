@@ -1,6 +1,6 @@
 ---
 name: flow-pipelines
-description: Put a mobile (Kotlin Multiplatform) or Electron desktop app on the shared client app pipelines, or move its pin to a newer release - follow the template's own runbook (docs/adopting.md at the release tag), set up what gh can, hand the owner the names of what only they provide, and prove it with runs read from the API. Use when the user asks for CI/CD, pipelines, releases, a release ladder, TestFlight, Firebase or Play distribution for an app, or to upgrade the template ("monta los pipelines", "añade CI/CD", "configura las releases", "sube la plantilla a vX", "pin to vX").
+description: Put a mobile (Kotlin Multiplatform), Electron desktop or native macOS app on the shared client app pipelines, or move its pin to a newer release - follow the template's own runbook (docs/adopting.md at the release tag), set up what gh can, hand the owner the names of what only they provide, and prove it with runs read from the API. Use when the user asks for CI/CD, pipelines, releases, a release ladder, TestFlight, Firebase or Play distribution for an app, or to upgrade the template ("monta los pipelines", "añade CI/CD", "configura las releases", "sube la plantilla a vX", "pin to vX").
 ---
 
 # Pipelines from the template
