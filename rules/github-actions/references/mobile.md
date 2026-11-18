@@ -22,6 +22,8 @@ built the same way, and it moves into the template once a second app needs it.
 - A merge to `main` ships the ladder's first rung; a promotion (Actions → Release) climbs one rung with the same
   version; the ladder's last rung is the store's test track or the MDM, and Release to store takes it from there.
 - The shared core is checked out next to the app (`../<core>`) at a configured ref, because apps build it from source.
+- On a developer's Mac, before the first `bundle exec fastlane`: the app's `.ruby-version` (macOS's own Ruby is too
+  old) and a frozen bundle in the app's ignored `vendor/bundle`. The template's README § On a developer's Mac.
 - Without Maestro flows an app declares `maestro: false` in `mobile.yml`; with them, a pull request runs the smoke
   flows and a promotion needs the merge's full run green.
 

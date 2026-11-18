@@ -33,6 +33,6 @@ Deployments use the shared pipeline template: reusable workflows plus callers yo
 
 | File | Explains | Loads with |
 |---|---|---|
-| [`template.md`](references/template.md) | callers per workload, version markers, the ladder, promote, rollback, migrations, setup | workflows |
+| [`template.md`](references/template.md) | callers per workload, version markers, the ladder, promote, rollback, migrations, setup, a self-hosted Mac runner | workflows |
 | [`security.md`](references/security.md) | permissions, OIDC, a GitHub App for other repos, injection, secrets, pinning, untrusted pull requests, runners | workflows, actions |
 | [`mobile.md`](references/mobile.md) | Android and iOS pipelines: the template's mobile callers and shared lanes, or an app's own | mobile workflows, fastlane |

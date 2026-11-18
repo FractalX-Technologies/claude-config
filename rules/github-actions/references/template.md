@@ -7,8 +7,9 @@ paths:
 
 One template for every workload. Its README is the reference (every input, troubleshooting) and its `docs/` the rest:
 `backend.md` (the backend's ladder, Azure roles, setup), `settings.md` (every secret and variable by level),
-`adopting.md` (the runbook an agent follows for a client app: the `flow-pipelines` skill). Read them at the tag the
-repo pins. This file holds what to decide before copying anything.
+`adopting.md` (the runbook an agent follows for a client app: the `flow-pipelines` skill), `self-hosted-runner.md`
+(a team's Mac as the runner of the heavy mobile and macOS jobs: its two users, the gate, setup, upkeep). Read them at
+the tag the repo pins. This file holds what to decide before copying anything.
 
 ## Pick the callers
 
@@ -61,6 +62,9 @@ backend-X.Y.Z-dev  ─promote→  backend-X.Y.Z-prd        (the rungs of .github
   Contributor) come from the platform IaC repo.
 - Mobile and desktop: the template's runbook (`docs/adopting.md`) lists the environments, the names and what only the
   owner provides ([mobile](mobile.md)).
+- Jobs on a team's Mac instead of GitHub's images: the template's `docs/self-hosted-runner.md`, before adding a
+  repository or a release workflow to a Mac, or setting one up. The Mac's owner runs its setup script in Terminal,
+  never an agent (it asks for passwords), naming everything the Mac serves: each list replaces the last.
 - `Production`'s gate is a required reviewer where the GitHub plan offers one (not on private repos below
   Enterprise); otherwise the manual promote run is the gate.
 - The calling job grants what the template's jobs need (the example's `contents: write`, `pull-requests: read` and
