@@ -29,11 +29,13 @@ case "$name" in
 esac
 
 case "$name" in
+  # Named like a read, but it creates one when missing.
+  get_or_create_*) ask_or_deny "$mode" "$name creates a resource on the Vercel account when it is missing. It needs the user's OK for this one call." ;;
   list_*|get_*|read_*|search_*|count_*|aggregate_*|check_*) ;;
   # Reads whose names don't say so: env var names (decrypt was refused above), queries, a UI card, a URL fetch.
   filter_project_envs|web_fetch_vercel_url|ui_get_build_log_excerpt|open_deployments|create_observability_query|create_trace_session) ;;
-  # Claude Code's own sign-in while the server needs OAuth: the user approves it in the browser.
-  authenticate|complete_authentication) ;;
+  # Sign-in, and the link that grants the session a team: the user approves both in the browser.
+  authenticate|complete_authentication|authorize_team_access|authorize_team_sso) ;;
   *) ask_or_deny "$mode" "$name changes the Vercel account (deploys, domains, env vars, settings) or sends data out. It needs the user's OK for this one call." ;;
 esac
 # A share link with a bypass token opens a protected deployment to anyone holding it.

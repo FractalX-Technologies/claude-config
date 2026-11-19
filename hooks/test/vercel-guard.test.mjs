@@ -40,7 +40,9 @@ test('vercel-guard: reading projects, deployments, logs and analytics passes', (
     assert.ok(passes(call(t)), t);
   }
   // Claude Code's own sign-in tools for a server that needs OAuth: the user approves in the browser.
-  for (const t of ['authenticate', 'complete_authentication']) assert.ok(passes(call(t, {}, 'auto')), t);
+  for (const t of ['authenticate', 'complete_authentication', 'authorize_team_access', 'authorize_team_sso']) {
+    assert.ok(passes(call(t, {}, 'auto')), t);
+  }
   assert.ok(passes(call('filter_project_envs', { idOrName: 'web' })), 'envs without decrypt');
   assert.ok(passes(call('filter_project_envs', { idOrName: 'web', decrypt: 'false' })), 'decrypt false');
 });
@@ -48,7 +50,7 @@ test('vercel-guard: reading projects, deployments, logs and analytics passes', (
 test('vercel-guard: every other tool asks first, and refuses where a prompt is not guaranteed', () => {
   for (const t of ['deploy_to_vercel', 'create_deployment', 'cancel_deployment', 'request_promote', 'request_rollback',
     'create_project_env', 'edit_project_env', 'update_record', 'replace_domain_dns_records', 'update_firewall_config',
-    'pause_project', 'update_project', 'get_access_to_vercel_url', 'submit_feedback', 'run_session_command',
+    'pause_project', 'update_project', 'get_access_to_vercel_url', 'get_or_create_drive', 'submit_feedback', 'run_session_command',
     'some_future_tool']) {
     assert.ok(asks(call(t)), t);
     const r = call(t, {}, 'auto');
