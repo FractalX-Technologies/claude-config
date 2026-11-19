@@ -39,6 +39,8 @@ test('vercel-guard: reading projects, deployments, logs and analytics passes', (
     'create_observability_query', 'create_trace_session']) {
     assert.ok(passes(call(t)), t);
   }
+  // Claude Code's own sign-in tools for a server that needs OAuth: the user approves in the browser.
+  for (const t of ['authenticate', 'complete_authentication']) assert.ok(passes(call(t, {}, 'auto')), t);
   assert.ok(passes(call('filter_project_envs', { idOrName: 'web' })), 'envs without decrypt');
   assert.ok(passes(call('filter_project_envs', { idOrName: 'web', decrypt: 'false' })), 'decrypt false');
 });
