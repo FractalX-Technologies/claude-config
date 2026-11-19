@@ -80,7 +80,7 @@ test('session-context: a repo wired to Infisical says so, and whether the CLI is
   // `true` stands in for the CLI: the hook asks only whether it is there, and never runs it.
   const cli = sandbox({});
   symlinkSync(execFileSync('bash', ['-c', 'type -P true'], { encoding: 'utf8' }).trim(), path.join(cli, 'infisical'));
-  const tools = binWith('bash', 'jq', 'awk', 'cut');
+  const tools = binWith('bash', 'jq', 'awk', 'cut', 'find');
   const context = (files, PATH = tools) => {
     const { stdout } = runHook('session-context', {}, { CLAUDE_PROJECT_DIR: sandbox(files), PATH });
     return stdout === '' ? '' : JSON.parse(stdout).hookSpecificOutput.additionalContext;
@@ -102,6 +102,25 @@ test('session-context: a repo wired to Infisical says so, and whether the CLI is
   const both = context({ ...wired, 'tasks/lessons.md': '## 2026-09-03 — a lesson\n- **Rule:** kept.\n' });
   assert.match(both, /a lesson: kept\./);
   assert.match(both, /takes its secrets from Infisical/);
+});
+
+test('session-context: a repo with env variables and no Infisical is told the rule', () => {
+  const tools = binWith('bash', 'jq', 'awk', 'cut', 'find');
+  const context = (files) => {
+    const { stdout } = runHook('session-context', {}, { CLAUDE_PROJECT_DIR: sandbox(files), PATH: tools });
+    return stdout === '' ? '' : JSON.parse(stdout).hookSpecificOutput.additionalContext;
+  };
+  for (const example of ['.env.example', 'app/backend/.env.example']) {
+    const unwired = context({ [example]: 'API_KEY=\n' });
+    assert.match(unwired, /not wired to Infisical/, example);
+    assert.match(unwired, /CLAUDE\.md § Secrets/, example);
+    assert.match(unwired, /flow-secrets/, example);
+    assert.doesNotMatch(unwired, /takes its secrets from Infisical/, example);
+  }
+  // Wired, the repo is told how to run, never that it lacks the file.
+  assert.doesNotMatch(context({ '.infisical.yaml': 'version: 1\n', '.env.example': 'API_KEY=\n' }), /not wired/);
+  // A dependency's example is not the repo's.
+  assert.equal(context({ 'node_modules/some-package/.env.example': 'X=\n' }), '');
 });
 
 function stop(files) {

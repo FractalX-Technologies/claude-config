@@ -6,6 +6,7 @@
 # pattern → rule; an agent that never reads them repeats them. tasks/todo.md § Open decisions holds
 # what only the user may decide. A repo wired to Infisical (.infisical.yaml at its root) is said so
 # (global CLAUDE.md § Secrets): otherwise an agent starts its app with no keys, or asks for a .env.
+# One that names env variables (.env.example) and has no such file is told the rule it doesn't meet yet.
 # Read-only, never blocks, never runs the CLI.
 set -uo pipefail
 # Every guard in ~/.claude/hooks/ exits 0 without jq, so a missing jq silently turns them all off.
@@ -35,6 +36,8 @@ secrets=""
 if [ -f .infisical.yaml ] || [ -f .infisical.json ]; then
   secrets="This repo takes its secrets from Infisical (.infisical.yaml at its root). Before starting, building or signing an app here, follow the flow-secrets skill: ask which environment of the repo's, check the session, run the repo's own command. Never print a value."
   command -v infisical >/dev/null 2>&1 || secrets="$secrets The infisical CLI is not installed on this machine: installing it is the user's to approve."
+elif [ -n "$(find . -maxdepth 4 \( -name node_modules -o -name .git -o -name build -o -name dist -o -name vendor \) -prune -o -name .env.example -print -quit 2>/dev/null)" ]; then
+  secrets="This repo names env variables (.env.example) and is not wired to Infisical: no .infisical.yaml at its root. A repo whose apps run with secrets in more than one environment must be (CLAUDE.md § Secrets). Say so before running its app or handing anyone a .env; wiring it is a task of its own (the flow-secrets skill, What a wired repo holds)."
 fi
 
 [ -n "$lessons$decisions$secrets" ] || exit 0

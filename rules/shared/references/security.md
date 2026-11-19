@@ -49,8 +49,9 @@ In logs, traces, analytics, crash reports, screenshots, error messages and test 
 ## Secrets
 
 - Mobile: `local.properties` → BuildKonfig. Backend and desktop: environment variables.
-- A repo wired to Infisical (`.infisical.yaml` at its root) gets those variables from it as the app starts, never
-  from a copied file: the `flow-secrets` skill.
+- A repo with more than one environment gets those variables from Infisical as the app starts
+  (`.infisical.yaml` at its root), never from a copied file: global `CLAUDE.md` › Secrets and the `flow-secrets`
+  skill.
 - `local.properties` and `.env` are never committed; their `.example` templates with dummy values are.
 - **Nothing inside an app binary is secret**: an APK, an IPA or an ASAR opens in one command.
 - CI passes secrets as environment variables, never in a committed file or a workflow file.

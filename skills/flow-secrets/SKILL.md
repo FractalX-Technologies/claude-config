@@ -7,7 +7,7 @@ description: Run an app with its secrets from Infisical - ask which of the repo'
 
 A repo is **wired** when `.infisical.yaml` sits at its root. Its keys then live in Infisical, one set per
 environment, and reach an app only as its process starts. Nothing is copied into a file, and no value is ever
-shown.
+shown. Every repo whose apps run with secrets in more than one environment must be wired (CLAUDE.md › Secrets).
 
 ## Steps
 
@@ -50,7 +50,10 @@ shown.
 
 ## What a wired repo holds
 
-Check these before trusting a repo's set-up, and build them when asked to wire one:
+Check these before trusting a repo's set-up, and build them when wiring one. A repo with environments and no
+`.infisical.yaml` isn't wired: say so before running its app, and wire it as a task of its own. It starts once
+the owner has made the repo's project in Infisical, with its environments, and named its id: the values are
+theirs to type there.
 
 - `.infisical.yaml` at the root: the project and Infisical's address. An id, no secret.
 - One command per app that takes the environment by name, starts with the least reach by default, and can run
