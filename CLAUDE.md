@@ -73,7 +73,9 @@ My stack, projects and machine live in `~/.claude/personal.md`, outside the shar
 - A new dependency: first check that the repo doesn't already have something that does it, pick a release at least
   14 days old, and name it in the pull request.
 - Ask before installing onto the machine: `brew`, global packages (`-g`, `pipx`, `uv tool`, `cargo`/`go`/`gem
-  install`), global dotnet tools and workloads, editor and `gh` extensions (the `dangerous-commands` hook enforces it).
+  install`), global dotnet tools and workloads, editor, `gh` and `az` extensions (the `dangerous-commands` hook
+  enforces it). `az` installs the extension a command lacks by itself: query Log Analytics with `az rest`, never
+  `az monitor log-analytics`.
 
 ## My machine
 

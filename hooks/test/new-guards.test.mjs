@@ -27,7 +27,8 @@ test('dangerous-commands: installs onto the machine ask first', () => {
     'bun add -g x', 'pip install x', 'python3 -m pip install x', 'pipx install x', 'uv tool install ruff', 'cargo install x',
     'go install x@latest', 'gem install x', 'brew install jq', 'brew upgrade', 'dotnet tool install -g x',
     'dotnet tool update --global x', 'dotnet workload install maui', 'dotnet new install x', 'docker compose up -d',
-    'docker compose -f dev.yml up', 'docker-compose up', 'gh extension install x/y', 'code --install-extension x.y']) {
+    'docker compose -f dev.yml up', 'docker-compose up', 'gh extension install x/y', 'code --install-extension x.y',
+    'az extension add -n log-analytics', 'az monitor log-analytics query -w x --analytics-query y']) {
     assert.ok(asks(cmd(c)), c);
   }
 });
@@ -46,7 +47,8 @@ test('dangerous-commands: offline and read-only commands pass', () => {
   for (const c of ['rm -rf build', 'rm -rf ./node_modules', 'rm -f ~/tmp/x.log', 'npx --no -- vitest run', 'npm run test',
     'npm ls', 'dotnet build --no-restore', 'dotnet test --no-restore', 'dotnet test --no-build --filter x', 'dotnet format --verify-no-changes --no-restore',
     'terraform fmt -check', 'terraform validate', 'docker ps', 'brew list', 'chmod +x a.sh', 'chmod 755 a.sh',
-    'curl -s https://x.test/api | jq .', 'echo hi | sh -n', 'git status']) {
+    'curl -s https://x.test/api | jq .', 'echo hi | sh -n', 'git status', 'az extension list',
+    'az rest --method post --url https://x.test/query --body @q.json', 'az monitor metrics list --resource x']) {
     assert.ok(passes(cmd(c)), c);
   }
 });

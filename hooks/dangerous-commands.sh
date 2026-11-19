@@ -46,6 +46,8 @@ elif has "${S}brew[[:space:]]+(install|reinstall|upgrade|tap|bundle)([[:space:]]
 elif has "${S}dotnet[[:space:]]+(tool[[:space:]]+(install|update)${G}|workload[[:space:]]+(install|update|restore)([[:space:]]|$)|new[[:space:]]+install([[:space:]]|$))"; then what="a global dotnet tool, workload or template"
 elif has "${S}docker[[:space:]]+compose[[:space:]]([^;&|]*[[:space:]])?up([[:space:]]|$)|${S}docker-compose[[:space:]]([^;&|]*[[:space:]])?up([[:space:]]|$)"; then what="docker compose up, which can recreate the containers the user is running,"
 elif has "${S}(gh[[:space:]]+extension[[:space:]]+install|code[[:space:]]+--install-extension)"; then what="an extension install"
+# az installs the extension a command lacks by itself: `az monitor log-analytics` is one (az rest queries the same API).
+elif has "${S}az[[:space:]]+(extension[[:space:]]+(add|update)|monitor[[:space:]]+log-analytics)([[:space:]]|$)"; then what="an az extension install"
 fi
 [ -n "$what" ] || exit 0
 
