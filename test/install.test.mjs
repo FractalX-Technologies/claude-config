@@ -141,7 +141,8 @@ test('install keeps a server of yours that has a kit name, and uninstall removes
   assert.match(r.stdout, new RegExp(`kept your own MCP server ${name}`));
   install(kept, ['--uninstall'], KIT, fakeCli(kept));
   assert.deepEqual(userConfigOf(kept).mcpServers, { [name]: own });
-  assert.deepEqual(cliCalls(kept), []);
+  // The kit's other servers come and go; no call may touch the user's own one.
+  assert.deepEqual(cliCalls(kept).filter((c) => c.split(' ')[4] === name), []);
 
   const mine = { type: 'http', url: 'https://example.com/mcp' };
   const h = home({ '.claude.json': JSON.stringify({ mcpServers: { mine } }) });

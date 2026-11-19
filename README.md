@@ -13,7 +13,7 @@ Install it once and it keeps itself up to date.
 | `skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](hooks/README.md) |
-| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs`: search and read Infisical's documentation, no account |
+| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account) and `vercel` (each person signs in, see [Vercel](#vercel)) |
 
 Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `CLAUDE.md` imports and which
 never leaves your machine.
@@ -64,10 +64,25 @@ Add it to `mcp/servers.json` under its name, in the shape `claude mcp add-json` 
 { "infisical-docs": { "type": "http", "url": "https://infisical.com/docs/mcp" } }
 ```
 
-- Only servers that need no credential go there: the file is public and applied on every machine.
+- Only servers whose config holds no credential go there: the file is public and applied on every machine. One that
+  signs in with OAuth in the browser (`vercel`) fits: the token stays in each person's client.
 - One that needs a token or a client secret (Infisical's `@infisical/mcp`, which reads and writes secrets) is added
   by hand on each machine with `claude mcp add --scope user`, from a terminal outside a Claude session.
 - A changed entry doesn't replace one already registered: remove the old one first (`claude mcp remove <name>`).
+
+### Vercel
+
+`install.sh` registers `https://mcp.vercel.com` as `vercel`. The first time, run `/mcp` in a session, pick `vercel`
+and sign in; grant it only the teams you work on. It sees what your Vercel account sees: deployments, build and
+runtime logs, analytics, projects.
+
+The `vercel-guard` hook decides per tool, because the grant is your whole account:
+
+- Reads pass: `list_*`, `get_*`, `search_*`, logs, errors, analytics, env var names.
+- Refused always: tools that return a secret value (decrypted env vars, Edge Config tokens, flag SDK keys) and
+  purchases (domains).
+- Everything else asks: deploys, promotes and rollbacks, DNS, env vars, firewall, settings, feedback to Vercel. In
+  auto mode that is a refusal; run it yourself or approve it outside that mode.
 
 ### Auth0
 

@@ -2,5 +2,9 @@
   "infisical-docs": {
     "type": "http",
     "url": "https://infisical.com/docs/mcp"
+  },
+  "vercel": {
+    "type": "http",
+    "url": "https://mcp.vercel.com"
   }
 }

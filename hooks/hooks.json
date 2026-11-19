@@ -48,6 +48,12 @@
         "hooks": [
           { "type": "command", "command": "\"$HOME\"/.claude/hooks/auth0-read-only.sh", "timeout": 10 }
         ]
+      },
+      {
+        "matcher": "mcp__vercel__.*",
+        "hooks": [
+          { "type": "command", "command": "\"$HOME\"/.claude/hooks/vercel-guard.sh", "timeout": 10 }
+        ]
       }
     ],
     "PostToolUse": [
