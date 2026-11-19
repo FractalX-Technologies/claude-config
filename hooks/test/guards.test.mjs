@@ -69,6 +69,41 @@ test('session-context: silent when there is nothing to say, loud when jq is miss
   assert.match(runHook('session-context', {}, { PATH: bin }).stdout, /jq is not installed/);
 });
 
+// A folder holding only the named tools, so a hook sees a machine with or without the infisical CLI.
+function binWith(...tools) {
+  const bin = sandbox({});
+  for (const tool of tools) symlinkSync(execFileSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).trim(), path.join(bin, tool));
+  return bin;
+}
+
+test('session-context: a repo wired to Infisical says so, and whether the CLI is on this machine', () => {
+  // `true` stands in for the CLI: the hook asks only whether it is there, and never runs it.
+  const cli = sandbox({});
+  symlinkSync(execFileSync('bash', ['-c', 'type -P true'], { encoding: 'utf8' }).trim(), path.join(cli, 'infisical'));
+  const tools = binWith('bash', 'jq', 'awk', 'cut');
+  const context = (files, PATH = tools) => {
+    const { stdout } = runHook('session-context', {}, { CLAUDE_PROJECT_DIR: sandbox(files), PATH });
+    return stdout === '' ? '' : JSON.parse(stdout).hookSpecificOutput.additionalContext;
+  };
+  const wired = { '.infisical.yaml': 'version: 1\nsecrets-management:\n  project-id: 00000000-0000-0000-0000-000000000000\n' };
+
+  const found = context(wired, `${cli}:${tools}`);
+  assert.match(found, /takes its secrets from Infisical/);
+  assert.match(found, /flow-secrets/);
+  assert.match(found, /which environment/);
+  assert.doesNotMatch(found, /not installed/);
+  // Nothing of the file itself is repeated: the note is the same whatever it holds.
+  assert.doesNotMatch(found, /00000000/);
+
+  assert.match(context(wired), /infisical CLI is not installed/);
+  assert.match(context({ '.infisical.json': '{}' }), /takes its secrets from Infisical/);
+  assert.equal(context({ 'README.md': 'infisical is mentioned, nothing is wired\n' }), '');
+
+  const both = context({ ...wired, 'tasks/lessons.md': '## 2026-09-03 — a lesson\n- **Rule:** kept.\n' });
+  assert.match(both, /a lesson: kept\./);
+  assert.match(both, /takes its secrets from Infisical/);
+});
+
 function stop(files) {
   const dir = sandbox(files);
   execFileSync('git', ['init', '-q', dir]);

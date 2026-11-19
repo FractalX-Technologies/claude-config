@@ -64,6 +64,8 @@ My stack, projects and machine live in `~/.claude/personal.md`, outside the shar
   value.
 - Search with `git grep --untracked` or `rg`, which skip gitignored env files, never `grep -r` over a folder
   that holds them. Outside a git repo `rg` ignores `.gitignore`: pass `--no-require-git`.
+- A repo with `.infisical.yaml` at its root takes its keys from Infisical, per environment. Before starting,
+  building or signing its app, ask which environment and check the session: the `flow-secrets` skill.
 
 ## Installs
 

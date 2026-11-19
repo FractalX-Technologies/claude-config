@@ -93,3 +93,35 @@ test('allows *.example twins, ordinary files, and secrets that do not exist', ()
   assert.equal(bash('cat README.md').status, 0);
   assert.equal(bash('cat ~/.netrc').status, 0);
 });
+
+test('denies the Infisical commands that print values', () => {
+  for (const command of [
+    'infisical user get token',
+    'infisical export --env prod',
+    'infisical secrets-manager export --format=dotenv',
+    'infisical secrets --env dev',
+    'infisical secrets-manager secrets get --env dev --path /backend -o json',
+    'cd app && infisical secrets get API_KEY --plain',
+    'HQ_SECRETS=dev infisical run --env dev -- env',
+    'infisical secrets-manager run --env prod --path /backend -- printenv',
+    'echo start; infisical secrets-manager secrets --env dev | head -3',
+  ]) {
+    const { status, stderr } = bash(command);
+    assert.equal(status, 2, command);
+    assert.match(stderr, /prints secret values/, command);
+  }
+});
+
+test('allows running under Infisical, names through jq, and text that only mentions a command', () => {
+  for (const command of [
+    'infisical --version',
+    'infisical secrets-manager run --silent --env dev --path /backend -- true < /dev/null',
+    'infisical secrets-manager run --env dev -- npm run start:dev',
+    'infisical run --env dev -- sh -c "export PORT=4311; npm start"',
+    "infisical secrets-manager secrets get --env dev --path /backend -o json --silent | jq -r '.[].secretKey'",
+    'infisical secrets-manager folders get --env dev',
+    "git grep -n 'infisical export' -- docs",
+    'git commit -m "docs: never run infisical export"',
+    'scripts/with-secrets.sh backend npm start',
+  ]) assert.equal(bash(command).status, 0, command);
+});

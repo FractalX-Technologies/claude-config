@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# SessionStart — put the lessons and the open decisions in front of the agent before it starts.
+# SessionStart — put the lessons, the open decisions and where the repo's secrets come from in front of
+# the agent before it starts.
 #
 # Rule: shared rules § How work flows. tasks/lessons.md holds past corrections as
 # pattern → rule; an agent that never reads them repeats them. tasks/todo.md § Open decisions holds
-# what only the user may decide. Read-only, never blocks.
+# what only the user may decide. A repo wired to Infisical (.infisical.yaml at its root) is said so
+# (global CLAUDE.md § Secrets): otherwise an agent starts its app with no keys, or asks for a .env.
+# Read-only, never blocks, never runs the CLI.
 set -uo pipefail
 # Every guard in ~/.claude/hooks/ exits 0 without jq, so a missing jq silently turns them all off.
 if ! command -v jq >/dev/null 2>&1; then
@@ -27,8 +30,16 @@ decisions=$(awk '
   on && /^- \[ \]/ { sub(/^- \[ \] */, "- "); print }
 ' tasks/todo.md 2>/dev/null | cut -c1-200)
 
-[ -n "$lessons$decisions" ] || exit 0
-ctx="Project memory for this session, from tasks/ (shared rules § How work flows)."
+# The file's presence is the fact; what it holds (a project id, an address) is not repeated.
+secrets=""
+if [ -f .infisical.yaml ] || [ -f .infisical.json ]; then
+  secrets="This repo takes its secrets from Infisical (.infisical.yaml at its root). Before starting, building or signing an app here, follow the flow-secrets skill: ask which environment of the repo's, check the session, run the repo's own command. Never print a value."
+  command -v infisical >/dev/null 2>&1 || secrets="$secrets The infisical CLI is not installed on this machine: installing it is the user's to approve."
+fi
+
+[ -n "$lessons$decisions$secrets" ] || exit 0
+ctx=""
+[ -n "$lessons$decisions" ] && ctx="Project memory for this session, from tasks/ (shared rules § How work flows)."
 [ -n "$lessons" ] && ctx="$ctx
 
 Lessons — past corrections, do not repeat them (tasks/lessons.md):
@@ -37,6 +48,9 @@ $lessons"
 
 Open decisions waiting on the user (tasks/todo.md) — never decide these silently:
 $decisions"
+[ -n "$secrets" ] && ctx="${ctx:+$ctx
+
+}$secrets"
 
 jq -n --arg c "$ctx" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $c}}'
 exit 0

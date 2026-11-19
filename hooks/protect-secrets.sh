@@ -19,6 +19,10 @@
 # and `--flag=file` unwrap, and a relative path is tried against the session cwd AND every `cd` target
 # in the command, so `cd apps/backend && cat .env` is caught as well as `cat apps/backend/.env`.
 #
+# The Infisical CLI is the one program denied by what it is asked, not by a file: its token, an export,
+# a listing of secrets that no jq narrows and a run of `env` each print values. A run of anything else
+# passes, and so does text that only mentions a command (a search, a commit message).
+#
 # A tripwire, not a sandbox: `node -e` building a path at runtime gets through. Exit 2 is the ONLY
 # exit code that blocks a PreToolUse; exit 1 does not block.
 set -uo pipefail
@@ -100,6 +104,21 @@ MSG
   exit 2
 }
 
+deny_command() {
+  cat >&2 <<MSG
+DENIED — \`$1\` prints secret values into the transcript.
+
+Shared security rule § Secrets (~/.claude/rules/shared/references/security.md): a value that reaches the
+transcript has left this machine, and rotating it is the only fix.
+
+Instead (the flow-secrets skill): run the app through the repo's own command, which hands the values to
+the process alone; check the session with a run of nothing
+(\`infisical secrets-manager run --silent --env <env> --path <folder> -- true < /dev/null\`); read the
+names alone (\`... secrets get ... -o json --silent | jq -r '.[].secretKey'\`).
+MSG
+  exit 2
+}
+
 case "$tool" in
   Read)
     f=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // ""')
@@ -127,6 +146,25 @@ case "$tool" in
       match(line, /<<-?[[:space:]]*["'"'"']?[A-Za-z_][A-Za-z0-9_]*/) {
         skip = substr(line, RSTART, RLENGTH); gsub(/^<<-?[[:space:]]*["'"'"']?/, "", skip)
       }' | sed -E "s/(-m|--message)[[:space:]]*(\"[^\"]*\"|'[^']*')//g")
+    # Infisical, where a command starts (after an operator, past any VAR=value), one statement at a time.
+    infisical='(^|[|(])[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*infisical[[:space:]]+(secrets-manager[[:space:]]+)?'
+    while IFS= read -r statement; do
+      case "$statement" in *infisical*) ;; *) continue ;; esac
+      if printf '%s' "$statement" | grep -Eq "${infisical}user[[:space:]]+get[[:space:]]+token([[:space:]]|\$)"; then
+        deny_command "infisical user get token"
+      fi
+      if printf '%s' "$statement" | grep -Eq "${infisical}export([[:space:]]|\$)"; then
+        deny_command "infisical export"
+      fi
+      if printf '%s' "$statement" | grep -Eq "${infisical}run[[:space:]].*[[:space:]]--[[:space:]]+(env|printenv)([[:space:]]|\$)"; then
+        deny_command "infisical run -- env"
+      fi
+      # `secrets` alone or `secrets get` lists values; set, delete and folders don't. jq is what narrows it to names.
+      if printf '%s' "$statement" | grep -Eq "${infisical}secrets([[:space:]]+get)?([[:space:]]+-|[[:space:]]+[A-Z]|[[:space:]]*\$|[[:space:]]*\\|)" \
+        && ! printf '%s' "$statement" | grep -Eq '\|[[:space:]]*jq([[:space:]]|$)'; then
+        deny_command "infisical secrets"
+      fi
+    done < <(printf '%s\n' "$scan" | awk '{ gsub(/&&|\|\||;/, "\n"); print }')
     # Deny only verbs that dump a file's CONTENT or move it off the machine — `/bin/cat`, `\cat` and
     # `"cat"` included.
     if printf '%s' "$scan" | grep -Eq '(^|[|;&[:space:](/\\"'"'"'])(cat|less|more|head|tail|bat|nl|tac|strings|xxd|od|hexdump|base64|openssl|jq|sed|awk|cut|sort|uniq|diff|python3?|node|perl|ruby|curl|wget|scp|rsync|nc|tar|zip|gzip)([[:space:]"'"'"']|$)' \
