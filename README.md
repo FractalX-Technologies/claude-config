@@ -76,6 +76,11 @@ Add it to `mcp/servers.json` under its name, in the shape `claude mcp add-json` 
 and sign in; grant it only the teams you work on. It sees what your Vercel account sees: deployments, build and
 runtime logs, analytics, projects.
 
+- FractalX's projects live in the team **FractalX** (slug `fractal-x`, id `team_fKjUj7IJfXGXLZ7yuGY90l24`), not in
+  your account's default team: name it in each request ("in the FractalX team").
+- A 403 "re-authenticate to this scope" means the sign-in didn't grant that team: Claude calls
+  `authorize_team_access` and hands you a one-time link to approve.
+
 The `vercel-guard` hook decides per tool, because the grant is your whole account:
 
 - Reads pass: `list_*`, `get_*`, `search_*`, logs, errors, analytics, env var names.
