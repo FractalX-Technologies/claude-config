@@ -134,13 +134,15 @@ test('install registers every MCP server of mcp/servers.json for the user, once,
 });
 
 // Auth0 has one callback for Claude Code, http://localhost:43110/callback: on any other port the sign-in is refused.
-test('install registers fractalx-hq with its Auth0 client and the one callback port Auth0 has for Claude Code', () => {
+// One tenant serves both environments with the same client, but each server takes only its own tokens.
+test('install registers HQ production and dev, each at its own address, with the Auth0 client and port Claude Code has', () => {
   const h = home();
   install(h, [], KIT, fakeCli(h));
-  assert.deepEqual(userConfigOf(h).mcpServers['fractalx-hq'], {
-    type: 'http',
-    url: 'https://hq-api.fractalx.io/mcp',
-    oauth: { clientId: 'vEZbEOEXkMQwky7T9cPyKlpsvvw72h70', callbackPort: 43110 },
+  const oauth = { clientId: 'vEZbEOEXkMQwky7T9cPyKlpsvvw72h70', callbackPort: 43110 };
+  const { 'fractalx-hq': prd, 'fractalx-hq-dev': dev } = userConfigOf(h).mcpServers;
+  assert.deepEqual({ prd, dev }, {
+    prd: { type: 'http', url: 'https://hq-api.fractalx.io/mcp', oauth },
+    dev: { type: 'http', url: 'https://hq-api-dev.fractalx.io/mcp', oauth },
   });
 });
 

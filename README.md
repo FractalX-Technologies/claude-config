@@ -13,7 +13,7 @@ Install it once and it keeps itself up to date.
 | `skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](hooks/README.md) |
-| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
+| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` / `fractalx-hq-dev` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
 
 Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `CLAUDE.md` imports and which
 never leaves your machine.
@@ -93,16 +93,21 @@ The `vercel-guard` hook decides per tool, because the grant is your whole accoun
 
 ### FractalX HQ
 
-`install.sh` registers HQ's production server, `https://hq-api.fractalx.io/mcp`, as `fractalx-hq`, with the public
-Auth0 client id of "HQ for Claude Code". The first time, run `/mcp` in a session, pick `fractalx-hq` and sign in
-with your HQ account: you get your own role and workspace, and a workspace admin must have turned on Settings › AI
-tools.
+`install.sh` registers HQ's two servers, each with the public Auth0 client id of "HQ for Claude Code":
 
+| Name | Environment | Address |
+|---|---|---|
+| `fractalx-hq` | production | `https://hq-api.fractalx.io/mcp` |
+| `fractalx-hq-dev` | dev | `https://hq-api-dev.fractalx.io/mcp` |
+
+The first time, run `/mcp` in a session, pick the server and sign in with your HQ account: you get your own role and
+workspace, and that environment's workspace admin must have turned on Settings › AI tools.
+
+- Each one signs in on its own: a token for dev's is refused by production's. Name the environment in each request
+  ("in HQ dev"), since both offer the same tools.
 - The callback port is `43110`, the one callback Auth0 has for Claude Code: on another port the sign-in is refused.
 - It reads products, Media and posts, and writes only drafts (with "Write drafts" on); a person publishes in HQ.
   What each tool does: `docs/MCP.md` in the `fractalx-hq` repo.
-- Dev's server (`https://hq-api-dev.fractalx.io/mcp`) is a connection of its own, with a token production refuses:
-  add it by hand under another name (`fractalx-hq-dev`), with the same client id and port.
 
 ### Auth0
 
