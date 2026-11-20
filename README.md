@@ -13,7 +13,7 @@ Install it once and it keeps itself up to date.
 | `skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](hooks/README.md) |
-| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account) and `vercel` (each person signs in, see [Vercel](#vercel)) |
+| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
 
 Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `CLAUDE.md` imports and which
 never leaves your machine.
@@ -65,7 +65,9 @@ Add it to `mcp/servers.json` under its name, in the shape `claude mcp add-json` 
 ```
 
 - Only servers whose config holds no credential go there: the file is public and applied on every machine. One that
-  signs in with OAuth in the browser (`vercel`) fits: the token stays in each person's client.
+  signs in with OAuth in the browser (`vercel`) fits: the token stays in each person's client. So does a public OAuth
+  client id with its callback port (`"oauth": { "clientId": …, "callbackPort": … }`, what `--client-id` and
+  `--callback-port` write); a client secret never does.
 - One that needs a token or a client secret (Infisical's `@infisical/mcp`, which reads and writes secrets) is added
   by hand on each machine with `claude mcp add --scope user`, from a terminal outside a Claude session.
 - A changed entry doesn't replace one already registered: remove the old one first (`claude mcp remove <name>`).
@@ -88,6 +90,19 @@ The `vercel-guard` hook decides per tool, because the grant is your whole accoun
   purchases (domains).
 - Everything else asks: deploys, promotes and rollbacks, DNS, env vars, firewall, settings, feedback to Vercel. In
   auto mode that is a refusal; run it yourself or approve it outside that mode.
+
+### FractalX HQ
+
+`install.sh` registers HQ's production server, `https://hq-api.fractalx.io/mcp`, as `fractalx-hq`, with the public
+Auth0 client id of "HQ for Claude Code". The first time, run `/mcp` in a session, pick `fractalx-hq` and sign in
+with your HQ account: you get your own role and workspace, and a workspace admin must have turned on Settings › AI
+tools.
+
+- The callback port is `43110`, the one callback Auth0 has for Claude Code: on another port the sign-in is refused.
+- It reads products, Media and posts, and writes only drafts (with "Write drafts" on); a person publishes in HQ.
+  What each tool does: `docs/MCP.md` in the `fractalx-hq` repo.
+- Dev's server (`https://hq-api-dev.fractalx.io/mcp`) is a connection of its own, with a token production refuses:
+  add it by hand under another name (`fractalx-hq-dev`), with the same client id and port.
 
 ### Auth0
 

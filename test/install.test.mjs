@@ -133,6 +133,17 @@ test('install registers every MCP server of mcp/servers.json for the user, once,
   assert.equal(cliCalls(h).length, Object.keys(kitMcp()).length, 'a second run called the CLI again');
 });
 
+// Auth0 has one callback for Claude Code, http://localhost:43110/callback: on any other port the sign-in is refused.
+test('install registers fractalx-hq with its Auth0 client and the one callback port Auth0 has for Claude Code', () => {
+  const h = home();
+  install(h, [], KIT, fakeCli(h));
+  assert.deepEqual(userConfigOf(h).mcpServers['fractalx-hq'], {
+    type: 'http',
+    url: 'https://hq-api.fractalx.io/mcp',
+    oauth: { clientId: 'vEZbEOEXkMQwky7T9cPyKlpsvvw72h70', callbackPort: 43110 },
+  });
+});
+
 test('install keeps a server of yours that has a kit name, and uninstall removes only the servers the kit registered', () => {
   const [name] = Object.keys(kitMcp());
   const own = { type: 'http', url: 'https://example.com/my-own' };
