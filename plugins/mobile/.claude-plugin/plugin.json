@@ -1,0 +1,7 @@
+{
+  "name": "mobile",
+  "description": "Kotlin Multiplatform, Swift and SwiftUI written well, and mobile screen design.",
+  "dependencies": [
+    "core"
+  ]
+}

@@ -18,7 +18,7 @@ path, and the hooks share `lib/`.
 | `plugins/*/skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `plugins/core/agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `plugins/core/hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](plugins/core/hooks/README.md) |
-| `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` / `fractalx-hq-dev` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
+| `plugins/local/.mcp.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` / `fractalx-hq-dev` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
 
 Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `CLAUDE.md` imports and which
 never leaves your machine.
@@ -48,6 +48,17 @@ the MCP servers with `claude mcp add-json --scope user`. Your own settings, hook
 server of yours with the same name is left as it is. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to
 `~/.claude/backups/claude-config-<date>/`.
 
+### Plugin manifests
+
+Each folder of `plugins/` has a plugin manifest and the repo a marketplace file (`.claude-plugin/`), so
+`claude plugin validate . && claude plugin validate plugins/<name>` checks their shape. **Installing them as plugins
+isn't supported yet: use `install.sh`.** What that route still lacks:
+
+- A plugin can't carry `CLAUDE.md` or the rules, and the review agents read the rules at `~/.claude/rules/`.
+- The guards for MCP tools match the names a user-scope server gets (`mcp__vercel__…`), not a plugin's.
+- `protect-config` guards `~/.claude/hooks`, not a plugin's copy of the scripts.
+- Next to `install.sh` on the same machine, every hook would run twice.
+
 ## Updates
 
 Automatic. At the start of a session `scripts/update.sh` pulls `main` in the background, at most every 6 hours
@@ -73,10 +84,10 @@ Everyone else gets it within a few hours. Friends who want their own changes: fo
 
 ### Add an MCP server
 
-Add it to `mcp/servers.json` under its name, in the shape `claude mcp add-json` takes:
+Add it to `plugins/local/.mcp.json` under `mcpServers`, by name, in the shape `claude mcp add-json` takes:
 
 ```json
-{ "infisical-docs": { "type": "http", "url": "https://infisical.com/docs/mcp" } }
+{ "mcpServers": { "infisical-docs": { "type": "http", "url": "https://infisical.com/docs/mcp" } } }
 ```
 
 - Only servers whose config holds no credential go there: the file is public and applied on every machine. One that

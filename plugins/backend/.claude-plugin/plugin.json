@@ -1,0 +1,7 @@
+{
+  "name": "backend",
+  "description": "NestJS, C# and PostgreSQL written well.",
+  "dependencies": [
+    "core"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "infra",
+  "description": "Terraform on Azure written well.",
+  "dependencies": [
+    "core"
+  ]
+}

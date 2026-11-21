@@ -16,7 +16,7 @@ usage() {
 Usage: install.sh [--stacks <list>] [--uninstall] [--quiet]
 
   (no flag)        link CLAUDE.md, rules, agents, hooks and the skills into ~/.claude, register the hooks and the
-                   MCP servers of mcp/servers.json
+                   MCP servers of the plugins' .mcp.json
   --stacks <list>  whose skills to link besides core and local: stacks separated by commas (mobile,web), `all`
                    (the default) or `none`. The choice is remembered for the runs that follow
   --uninstall      remove those links, hooks and MCP servers; backups and ~/.claude/personal.md stay
@@ -132,8 +132,11 @@ link() {                               # $1 = source, $2 = link
 }
 
 # The kit's hooks: the core plugin's hooks.json plus the updater, keyed by event.
+# hooks.json names each script from the plugin root. It is registered at ~/.claude/hooks, where the hooks link
+# answers: other config folders keep a copy of settings.json, and that address is the one they all can reach.
 kit_hooks() {
   jq --arg updater "$updater" '.hooks
+    | (.. | objects | select(has("command")) | .command) |= sub("^\"\\$\\{CLAUDE_PLUGIN_ROOT\\}\"/hooks/"; "\"$HOME\"/.claude/hooks/")
     | .SessionStart = ((.SessionStart // []) + [{matcher: "startup", hooks: [{type: "command", command: $updater, timeout: 10}]}])' \
     "$core/hooks/hooks.json"
 }
@@ -148,7 +151,11 @@ write_settings() {                     # stdin = new settings; writes only on a 
 
 # The kit's MCP servers, as "name<TAB>config".
 kit_mcp() {
-  if [ -f "$kit/mcp/servers.json" ]; then jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' "$kit/mcp/servers.json"; fi
+  local p f
+  for p in $base_plugins; do
+    f="$kit/plugins/$p/.mcp.json"
+    if [ -f "$f" ]; then jq -r '(.mcpServers // {}) | to_entries[] | "\(.key)\t\(.value | tojson)"' "$f"; fi
+  done
 }
 
 user_mcp() {                           # $1 = name; prints the user's config for it, or nothing

@@ -193,7 +193,7 @@ const scriptOf = (h) => h.command.match(/hooks\/([\w-]+)\.sh$/)[1];
 
 // True when `script` is wired under `event` with a matcher that selects `tool`.
 const fires = (event, script, tool) => (hooks[event] ?? []).some((group) =>
-  group.hooks.some((h) => h.command.endsWith(`/.claude/hooks/${script}.sh`)) && selects(group, tool));
+  group.hooks.some((h) => h.command.endsWith(`/hooks/${script}.sh`)) && selects(group, tool));
 
 test('wiring: each guard fires on every tool that can do what it forbids', () => {
   for (const tool of ['Read', 'Grep', 'Bash']) assert.ok(fires('PreToolUse', 'protect-secrets', tool), tool);

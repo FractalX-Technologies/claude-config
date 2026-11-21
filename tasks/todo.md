@@ -26,7 +26,7 @@ organisation's own MCP servers in that organisation's repo.
   linked, remembered in the config folder so the auto-update keeps the choice. Rules need no choice: each loads
   only with the files its `paths:` names. Writes: sandbox homes. e2e: `--stacks backend` links the skills of core,
   local and backend only; a later run with no flag keeps it; adding a stack links it, dropping one unlinks it.
-- [ ] 1c Manifests: `.claude-plugin/plugin.json` per plugin and `.claude-plugin/marketplace.json` at the root;
+- [x] 1c Manifests: `.claude-plugin/plugin.json` per plugin and `.claude-plugin/marketplace.json` at the root;
   `hooks.json` takes the plugin form (`${CLAUDE_PLUGIN_ROOT}`) with the installer still registering today's
   commands; `mcp/servers.json` becomes `plugins/local/.mcp.json`. The `protect-config` guard refuses these writes
   in a session that can't prompt: the user places them (one command). Writes: nothing. e2e: `claude plugin
@@ -107,4 +107,34 @@ Review 1b — stacks:
   choice; a test title that promised a second run. Left open: `--stacks` given with `--uninstall` is ignored, not
   validated.
 - Found on the way: a state file without the `stacks` key was read as "none" (caught rereading the diff).
+- Commit: `1259738` `feat(install): choose which stacks' skills are linked`. CI green on macOS and Linux; this Mac
+  updated: `settings.json` identical, no state file, 27 skill links.
+
+Review 1c — manifests:
+- Plugins: `.claude-plugin/plugin.json` in each of the six folders (name, description, `dependencies: ["core"]`
+  but for core, no version so every commit is one) and `.claude-plugin/marketplace.json`; `hooks.json` commands
+  start at `${CLAUDE_PLUGIN_ROOT}`; `mcp/servers.json` is now `plugins/local/.mcp.json`. Placed by the user with one
+  command: `protect-config` refuses these writes from a session that can't prompt.
+- Installer: `kit_hooks` maps each command back to `"$HOME"/.claude/hooks/<name>.sh`, so `settings.json` is byte
+  for byte what it was; `kit_mcp` reads the `.mcp.json` of core and local.
+- e2e: 91/91 (86 before, none weakened). `test/plugins.test.mjs` (5 tests) red before the files were placed; a
+  mutant that registers the commands unmapped fails. `claude plugin validate` passes for the marketplace and the
+  six plugins (15 hooks, 27 skills, 4 agents, 4 MCP servers seen), warnings only: no version, author, icon,
+  privacy URL, marketplace description. By hand: `main`'s tree upgraded in a sandbox home: `settings.json`
+  identical, nothing dangling, no backup.
+- Review: `review-code`. Fixed: uninstall removed no MCP server (`$stacks` unset; caught by an existing test);
+  the README offered the plugin route as ready, now marked unsupported with what it lacks; `kit_mcp` read stacks
+  that ship no server and would leave them registered when a stack is dropped; `hooks/README.md` still said
+  `hooks.json` is appended as it is. Left open, for the next guardrail batch (slice 3): the six descriptions are
+  repeated in `marketplace.json`; `local`'s description omits the pipelines procedure.
+- Found on the way: the plugin route needs more than manifests (see below).
 - Commit: pending.
+
+## Plugin route — not supported yet
+
+- The review agents read `~/.claude/rules/…`; a plugin carries no rules.
+- `vercel-guard` and `auth0-read-only` match `mcp__vercel__.*` / `mcp__auth0__.*`; a plugin's server gets another
+  tool prefix (not probed live).
+- `protect-config` guards `~/.claude/hooks` and that link's target, not a plugin cache.
+- Hook messages and two skills name `~/.claude/hooks`, `~/.claude/rules`; `flow-secrets` is named by core's hooks
+  and lives in `local`.

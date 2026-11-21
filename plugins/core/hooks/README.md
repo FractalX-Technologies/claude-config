@@ -39,7 +39,7 @@ Guards that run on every project, whatever Claude remembers. Each one enforces a
 ```
 plugins/core/hooks/
 ├── <name>.sh       the entry points, wired in hooks.json
-├── hooks.json      which script runs on which event (the `hooks` key of settings.json)
+├── hooks.json      which script runs on which event, each command from the plugin root (`${CLAUDE_PLUGIN_ROOT}`)
 ├── lib/            shared code: decide.sh (ask or deny), edit.mjs (the file after an edit), the node hooks
 └── test/           node --test, one sandbox per case: never touches a real repo or home folder
 ```
@@ -55,8 +55,8 @@ another copy, to prove a new test fails without the fix.
 
 ## Turning them on
 
-`install.sh` at the repo root links this folder to `~/.claude/hooks` and appends `hooks.json` to
-`~/.claude/settings.json` without replacing what is there (see the root README). Restart Claude Code and check
-with `/hooks`.
+`install.sh` at the repo root links this folder to `~/.claude/hooks` and appends the hooks of `hooks.json` to
+`~/.claude/settings.json`, each command at its address there (`"$HOME"/.claude/hooks/<name>.sh`), without replacing
+what is there (see the root README). Restart Claude Code and check with `/hooks`.
 
 A project's own `.claude/hooks/` holds only what is specific to it, never a copy of these: a copy runs twice.

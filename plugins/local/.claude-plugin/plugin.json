@@ -1,0 +1,7 @@
+{
+  "name": "local",
+  "description": "For a person at the keyboard: step-by-step and overnight work, handoff, device, secrets, release and reset procedures, plan questioning, and the shared MCP servers.",
+  "dependencies": [
+    "core"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "web",
+  "description": "TypeScript, React, shadcn/ui and Playwright written well, and motion design.",
+  "dependencies": [
+    "core"
+  ]
+}

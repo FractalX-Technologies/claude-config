@@ -1,0 +1,38 @@
+{
+  "name": "claude-config",
+  "owner": {
+    "name": "claude-config"
+  },
+  "plugins": [
+    {
+      "name": "core",
+      "source": "./plugins/core",
+      "description": "Review agents, guard hooks and the work-process skills every session needs: debug, refactor, docs lookup, writing for agents."
+    },
+    {
+      "name": "local",
+      "source": "./plugins/local",
+      "description": "For a person at the keyboard: step-by-step and overnight work, handoff, device, secrets, release and reset procedures, plan questioning, and the shared MCP servers."
+    },
+    {
+      "name": "mobile",
+      "source": "./plugins/mobile",
+      "description": "Kotlin Multiplatform, Swift and SwiftUI written well, and mobile screen design."
+    },
+    {
+      "name": "web",
+      "source": "./plugins/web",
+      "description": "TypeScript, React, shadcn/ui and Playwright written well, and motion design."
+    },
+    {
+      "name": "backend",
+      "source": "./plugins/backend",
+      "description": "NestJS, C# and PostgreSQL written well."
+    },
+    {
+      "name": "infra",
+      "source": "./plugins/infra",
+      "description": "Terraform on Azure written well."
+    }
+  ]
+}

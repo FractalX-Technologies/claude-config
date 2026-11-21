@@ -57,14 +57,16 @@ const cliCalls = (homeDir) => {
   const log = path.join(homeDir, 'claude-calls.log');
   return existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n') : [];
 };
-const kitMcp = (kit = KIT) => JSON.parse(readFileSync(path.join(kit, 'mcp/servers.json'), 'utf8'));
+const kitMcp = (kit = KIT) => JSON.parse(readFileSync(path.join(kit, 'plugins/local/.mcp.json'), 'utf8')).mcpServers;
 
 const settingsOf = (homeDir) => JSON.parse(readFileSync(path.join(homeDir, '.claude/settings.json'), 'utf8'));
 const commands = (settings, event) => (settings.hooks?.[event] ?? []).flatMap((g) => g.hooks.map((h) => h.command));
 // Rules, agents and hooks stay whole in the core plugin: one link each. Skills come from every plugin.
 const CORE = 'plugins/core';
+// hooks.json names each script from the plugin root; what gets registered is its address under ~/.claude/hooks.
+const registered = (command) => command.replace('"${CLAUDE_PLUGIN_ROOT}"/hooks/', '"$HOME"/.claude/hooks/');
 const kitCommands = (kit = KIT) => Object.values(JSON.parse(readFileSync(path.join(kit, CORE, 'hooks/hooks.json'), 'utf8')).hooks)
-  .flat().flatMap((g) => g.hooks.map((h) => h.command));
+  .flat().flatMap((g) => g.hooks.map((h) => registered(h.command)));
 // Every skill of the kit, as name → its folder.
 const skills = (kit = KIT) => Object.fromEntries(readdirSync(path.join(kit, 'plugins')).flatMap((plugin) => {
   const dir = path.join(kit, 'plugins', plugin, 'skills');
@@ -93,6 +95,9 @@ test('install links CLAUDE.md, rules, agents, hooks and every skill, and registe
   }
   const all = Object.keys(settingsOf(h).hooks).flatMap((e) => commands(settingsOf(h), e));
   for (const c of kitCommands()) assert.equal(all.filter((x) => x === c).length, 1, c);
+  // Copies of settings.json in other config folders (a second account, an agent's profile) hold this exact address.
+  assert.ok(all.includes('"$HOME"/.claude/hooks/protect-secrets.sh'));
+  assert.deepEqual(all.filter((c) => c.includes('CLAUDE_PLUGIN_ROOT')), []);
   assert.deepEqual(commands(settingsOf(h), 'SessionStart').filter((c) => c.includes('scripts/update.sh')), [`"${KIT}/scripts/update.sh"`]);
   assert.ok(existsSync(path.join(h, '.claude/personal.md')));
 });
@@ -258,7 +263,7 @@ test('uninstall removes only the kit links and hooks', () => {
   assert.ok(existsSync(path.join(h, '.claude/personal.md')));
 });
 
-test('install registers every MCP server of mcp/servers.json for the user, once, and keeps the rest of .claude.json', () => {
+test('install registers every MCP server of the plugins for the user, once, and keeps the rest of .claude.json', () => {
   const mine = { type: 'http', url: 'https://example.com/mcp' };
   const h = home({ '.claude.json': JSON.stringify({ numStartups: 3, mcpServers: { mine } }) });
   const cli = fakeCli(h);
