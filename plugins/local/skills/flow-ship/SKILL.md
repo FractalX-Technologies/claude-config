@@ -1,6 +1,6 @@
 ---
 name: flow-ship
-description: Ship changes to production — a migration, a web deploy, an app build to the stores — by the project's own runbook, forward-only, with every outward step confirmed. Use when the user asks to deploy, publish or release ("sube esto a prod", "publica los cambios", "deploy to prod", "aplica la migración a prod", "publica la app", "manda a review", "saca la 1.3.4"). Not for wiping or resetting anything: that is `flow-reset`.
+description: Ship changes to production — a migration, a web deploy, an app build to the stores — by the project's own runbook, forward-only, with every outward step confirmed. Use when the user asks to deploy, publish or release ("deploy to prod", "apply the migration to prod", "publish the app", "submit it for store review", "release 1.3.4"). Not for wiping or resetting anything, which is `flow-reset`.
 ---
 
 # Ship to production

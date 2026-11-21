@@ -30,7 +30,7 @@ A skill or agent `description`, a line in CLAUDE.md that names a file, a row in 
 that stays in context. Its **wording**, not the target, decides when the material is reached.
 
 - Lead with what it is, then one trigger per distinct case. Synonyms for the same case are one trigger written twice.
-- Use the words the user really types, Spanish ones included ("limpia este archivo", "nueva sesión").
+- Use the words the user really types ("clean up this file", "new session").
 - Short: every always-loaded word costs on every turn. The detail goes in the body.
 - A skill only ever started by hand: `disable-model-invocation: true`, and its description becomes a one-line summary
   for the human.

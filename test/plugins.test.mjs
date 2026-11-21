@@ -18,9 +18,10 @@ test('every plugin folder has a manifest named after it, with a description', ()
   }
 });
 
+// A plugin's description has one home, its own manifest: a second copy here drifts.
 test('the marketplace lists every plugin folder at its own path, and nothing else', () => {
-  const listed = Object.fromEntries(json('.claude-plugin/marketplace.json').plugins.map((p) => [p.name, p.source]));
-  assert.deepEqual(listed, Object.fromEntries(plugins.map((p) => [p, `./plugins/${p}`])));
+  const listed = json('.claude-plugin/marketplace.json').plugins.toSorted((x, y) => x.name.localeCompare(y.name));
+  assert.deepEqual(listed, plugins.toSorted().map((p) => ({ name: p, source: `./plugins/${p}` })));
 });
 
 // The skills of every other plugin cite rules, and all rules live in core.

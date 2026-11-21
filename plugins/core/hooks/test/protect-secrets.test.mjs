@@ -102,7 +102,7 @@ test('denies the Infisical commands that print values', () => {
     'infisical secrets --env dev',
     'infisical secrets-manager secrets get --env dev --path /backend -o json',
     'cd app && infisical secrets get API_KEY --plain',
-    'HQ_SECRETS=dev infisical run --env dev -- env',
+    'APP_SECRETS=dev infisical run --env dev -- env',
     'infisical secrets-manager run --env prod --path /backend -- printenv',
     'echo start; infisical secrets-manager secrets --env dev | head -3',
   ]) {

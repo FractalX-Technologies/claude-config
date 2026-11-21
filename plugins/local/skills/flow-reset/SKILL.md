@@ -1,6 +1,6 @@
 ---
 name: flow-reset
-description: Empty a sample environment's database (dev, staging, local) so the app can be tried from nothing — by the project's own runbook, never production — then bring back the owner's access. Use when the user asks to wipe or reset a non-production database ("pon la base de dev en ceros", "vacía la base de datos", "resetea dev", "empezar de cero", "reset the dev database").
+description: Empty a sample environment's database (dev, staging, local) so the app can be tried from nothing — by the project's own runbook, never production — then bring back the owner's access. Use when the user asks to wipe or reset a non-production database ("empty the dev database", "reset dev", "start from scratch").
 ---
 
 # Reset a sample environment

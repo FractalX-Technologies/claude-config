@@ -335,17 +335,35 @@ test('install registers every MCP server of the plugins for the user, once, and 
   assert.equal(cliCalls(h).length, Object.keys(kitMcp()).length, 'a second run called the CLI again');
 });
 
-// Auth0 has one callback for Claude Code, http://localhost:43110/callback: on any other port the sign-in is refused.
-// One tenant serves both environments with the same client, but each server takes only its own tokens.
-test('install registers HQ production and dev, each at its own address, with the Auth0 client and port Claude Code has', () => {
+// A public OAuth client id and its callback port are part of the entry (what --client-id and --callback-port write).
+// A sign-in that accepts one callback only is refused on any other port, so both must arrive as the plugin wrote them.
+test('install registers a server with the oauth client id and callback port its plugin wrote', () => {
   const h = home();
-  install(h, [], KIT, fakeCli(h));
-  const oauth = { clientId: 'vEZbEOEXkMQwky7T9cPyKlpsvvw72h70', callbackPort: 43110 };
-  const { 'fractalx-hq': prd, 'fractalx-hq-dev': dev } = userConfigOf(h).mcpServers;
-  assert.deepEqual({ prd, dev }, {
-    prd: { type: 'http', url: 'https://hq-api.fractalx.io/mcp', oauth },
-    dev: { type: 'http', url: 'https://hq-api-dev.fractalx.io/mcp', oauth },
-  });
+  const kit = path.join(h, 'kit');
+  cpSync(KIT, kit, { recursive: true, filter: (p) => !p.includes(`${path.sep}.git`) });
+  const oauth = { clientId: 'a-public-client-id', callbackPort: 8123 };
+  const servers = {
+    'example-api': { type: 'http', url: 'https://api.example.com/mcp', oauth },
+    'example-api-dev': { type: 'http', url: 'https://api-dev.example.com/mcp', oauth },
+  };
+  writeFileSync(path.join(kit, 'plugins/local/.mcp.json'), JSON.stringify({ mcpServers: servers }));
+  install(h, [], kit, fakeCli(h));
+  assert.deepEqual(userConfigOf(h).mcpServers, servers);
+});
+
+// Dropping a server from the list is not an order to remove it from every machine: whoever still uses it keeps it.
+test('a server the kit stops listing stays registered on the next install', () => {
+  const h = home();
+  const kit = path.join(h, 'kit');
+  cpSync(KIT, kit, { recursive: true, filter: (p) => !p.includes(`${path.sep}.git`) });
+  const file = path.join(kit, 'plugins/local/.mcp.json');
+  const gone = { type: 'http', url: 'https://api.example.com/mcp' };
+  writeFileSync(file, JSON.stringify({ mcpServers: { ...kitMcp(), gone } }));
+  const cli = fakeCli(h);
+  install(h, [], kit, cli);
+  writeFileSync(file, JSON.stringify({ mcpServers: kitMcp() }));
+  install(h, [], kit, cli);
+  assert.deepEqual(userConfigOf(h).mcpServers, { ...kitMcp(), gone });
 });
 
 test('install keeps a server of yours that has a kit name, and uninstall removes only the servers the kit registered', () => {

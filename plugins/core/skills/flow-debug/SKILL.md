@@ -1,6 +1,6 @@
 ---
 name: flow-debug
-description: Diagnose a hard bug or a performance regression - build a command that goes red on it first, then reproduce, minimise, rank hypotheses, instrument, fix with a regression test and clean up. Use when something is broken, throwing, failing, flaky or slow and the cause isn't obvious ("diagnose", "debug this", "no funciona", "falla", "va lento").
+description: Diagnose a hard bug or a performance regression - build a command that goes red on it first, then reproduce, minimise, rank hypotheses, instrument, fix with a regression test and clean up. Use when something is broken, throwing, failing, flaky or slow and the cause isn't obvious ("diagnose", "debug this").
 ---
 
 # Debugging

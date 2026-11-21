@@ -1,6 +1,6 @@
 ---
 name: flow-device
-description: Run a develop build on a physical iPhone or Android phone against the backend on this Mac - the Mac's network name (iOS) or adb reverse (Android), and a device build that stops without it. Use when the app must run on a real phone against the local backend ("correr en mi iPhone", "en el dispositivo físico", "en mi teléfono", "probar con localhost en el device"), or a device build says offline while the simulator works ("You are offline").
+description: Run a develop build on a physical iPhone or Android phone against the backend on this Mac - the Mac's network name (iOS) or adb reverse (Android), and a device build that stops without it. Use when the app must run on a real phone against the local backend ("run it on my iPhone", "on the physical device", "on my phone", "try it with localhost on the device"), or a device build says offline while the simulator works ("You are offline").
 ---
 
 # Develop on a physical device

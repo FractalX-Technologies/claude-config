@@ -7,22 +7,6 @@
     "vercel": {
       "type": "http",
       "url": "https://mcp.vercel.com"
-    },
-    "fractalx-hq": {
-      "type": "http",
-      "url": "https://hq-api.fractalx.io/mcp",
-      "oauth": {
-        "clientId": "vEZbEOEXkMQwky7T9cPyKlpsvvw72h70",
-        "callbackPort": 43110
-      }
-    },
-    "fractalx-hq-dev": {
-      "type": "http",
-      "url": "https://hq-api-dev.fractalx.io/mcp",
-      "oauth": {
-        "clientId": "vEZbEOEXkMQwky7T9cPyKlpsvvw72h70",
-        "callbackPort": 43110
-      }
     }
   }
 }

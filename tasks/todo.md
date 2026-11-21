@@ -37,7 +37,7 @@ organisation's own MCP servers in that organisation's repo.
   imports the active ones and `personal.md`. Writes: sandbox homes. e2e: the written file imports files that
   exist; a `CLAUDE.md` of the user's own is backed up. Once, by script (the old file is gone after this slice):
   every bullet of today's file is in exactly one of the two.
-- [ ] 3 English only, generic: the Spanish trigger phrases leave the skills and the instructions; the reply-language
+- [x] 3 English only, generic: the Spanish trigger phrases leave the skills and the instructions; the reply-language
   rule moves to `personal.md`; the organisation's own MCP servers and its Vercel team leave `mcp/` and the README.
   Writes: nothing (the servers stay registered on machines that have them). e2e: a content test fails on Spanish
   text or an organisation-specific name anywhere in the repo.
@@ -153,6 +153,29 @@ Review 2 — instructions per driver:
   writes the machine's own brake. Left open: pointers from core to local sections (`dangerous-commands` and one
   macOS rule to § My machine, the shared rules to › Decisions) read as "not loaded" in a run without `local`.
 - Found on the way: a test wrote through an installed link into the kit (lesson recorded).
+- Commit: `288852f` `refactor(instructions): split CLAUDE.md into core and local instructions`. CI green on macOS
+  and Linux; this Mac updated: `CLAUDE.md` written with three imports by `~` path, `settings.json` identical, no
+  backup, nothing dangling; a fresh session reads core's and local's sections and the personal facts.
+
+Review 3 — English only, generic:
+- Text: the Spanish trigger phrases left 12 skill descriptions (an English one where the case had none, nothing
+  where the sentence already said it); `flow-slices`, `think-grill`, `meta-writing` and local's instructions lost
+  their Spanish words; "Answer in Spanish" left the repo, and by the owner's choice is written nowhere else.
+- Generic: the host organisation's two MCP servers left `plugins/local/.mcp.json`, and its servers' section, its
+  Vercel team id and its IaC path left the README. The marketplace keeps name and source; a plugin's description
+  lives in its manifest. A server the kit stops listing stays registered (pinned by a test).
+- e2e: 99/99 (95 before). `test/content.test.mjs` is new: accented letters and Spanish words, the host's name
+  (read from the README's clone address), team ids and long tokens; run against the tree before this slice, all
+  three checks fail, on 61 lines. The test that pinned the organisation's two real servers now pins the same
+  behaviour on example servers (nested `oauth`, numeric port, name to config). `claude plugin validate` passes for
+  the marketplace and every plugin; every frontmatter parses as strict YAML (flow-ship's did not before).
+- Review: `review-code`. Fixed: translated triggers that repeated their own sentence or each other; "send it to
+  review" read as code review; the seeded `personal.md` did not mention the language; the README said uninstall
+  removes servers it no longer lists; the content test skipped file names and decomposed accents, failed on honest
+  English (`Math.sin`, "solo"), broke under `KIT_DIR`, and let the repo's address match a longer repo name.
+- Left open: the content test is a heuristic (Spanish with none of its words passes; only the first word of the
+  host's name is known; UUIDs pass). The repo's history on `main` still holds the removed names and ids: rewriting
+  it is the owner's call.
 - Commit: pending.
 
 ## Plugin route — not supported yet
@@ -161,5 +184,5 @@ Review 2 — instructions per driver:
 - `vercel-guard` and `auth0-read-only` match `mcp__vercel__.*` / `mcp__auth0__.*`; a plugin's server gets another
   tool prefix (not probed live).
 - `protect-config` guards `~/.claude/hooks` and that link's target, not a plugin cache.
-- Hook messages and two skills name `~/.claude/hooks`, `~/.claude/rules`; `flow-secrets` is named by core's hooks
-  and lives in `local`.
+- Hook messages and two skills name `~/.claude/hooks`, `~/.claude/rules`; `flow-secrets`, named by core's
+  hooks, moved to core in slice 2.

@@ -252,7 +252,7 @@ install() {
   remember_stacks
 
   if [ ! -e "$claude/personal.md" ]; then
-    printf '%s\n' '<!-- Your own facts for Claude: stack, projects, machine. Imported by CLAUDE.md; never shared. -->' \
+    printf '%s\n' '<!-- Your own facts for Claude: stack, projects, machine, the language to answer in. Imported by CLAUDE.md; never shared. -->' \
       > "$claude/personal.md"
     say "  created ~/.claude/personal.md: write your stack and projects there"
   fi

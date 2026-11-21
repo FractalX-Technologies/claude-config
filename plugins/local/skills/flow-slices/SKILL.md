@@ -1,6 +1,6 @@
 ---
 name: flow-slices
-description: Careful mode - plan the work as short slices and deliver them one by one, each built, tested and reviewed, then held for the user's OK before its commit and before the next slice. Use when the user picks careful mode at the start of a task, or asks to go step by step ("careful", "modo careful", "paso a paso", "por partes", "quiero revisar cada cambio").
+description: Careful mode - plan the work as short slices and deliver them one by one, each built, tested and reviewed, then held for the user's OK before its commit and before the next slice. Use when the user picks careful mode at the start of a task, or asks to go step by step ("careful mode", "I want to review each change").
 argument-hint: "What to build (a goal, a spec, or a plan file)"
 ---
 
@@ -75,8 +75,8 @@ Send the review ([`TEMPLATES.md`](TEMPLATES.md) › Gate message) in the user's 
 - **Automatic** → approve this slice, and run the rest of the plan in automatic (below).
 - **Stop** → leave the slice uncommitted in the worktree and the plan marked, and say exactly where things stand.
 
-**Automatic.** When the user answers Automatic or says to carry on without them ("automático", "sigue hasta
-terminar", "me voy a dormir"), skip the question, not the gate's work: every slice still passes its gates and review,
+**Automatic.** When the user answers Automatic or says to carry on without them ("automatic", "carry on until it's
+done", "I'm going to sleep"), skip the question, not the gate's work: every slice still passes its gates and review,
 gets its review entry and a one-line status, and is committed and pushed on its branch. Never stack two slices
 uncommitted, and never touch what the plan reserved for the user: stop there, with everything green.
 

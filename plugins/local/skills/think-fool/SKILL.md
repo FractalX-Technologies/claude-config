@@ -1,6 +1,6 @@
 ---
 name: think-fool
-description: Challenge a plan, decision or proposal with structured critical reasoning - devil's advocate, pre-mortem, red team, evidence audit - and end with a stronger position. Use only when the user asks for it ("play the fool", "devil's advocate", "poke holes", "what could go wrong", "red team", "pre-mortem", "abogado del diablo", "critica este plan", "qué puede salir mal").
+description: Challenge a plan, decision or proposal with structured critical reasoning - devil's advocate, pre-mortem, red team, evidence audit - and end with a stronger position. Use only when the user asks for it ("play the fool", "devil's advocate", "poke holes", "what could go wrong", "red team", "pre-mortem").
 metadata:
   version: "1.0.0"
   domain: workflow

@@ -6,33 +6,27 @@
   "plugins": [
     {
       "name": "core",
-      "source": "./plugins/core",
-      "description": "Review agents, guard hooks and the work-process skills every session needs: debug, refactor, docs lookup, writing for agents."
+      "source": "./plugins/core"
     },
     {
       "name": "local",
-      "source": "./plugins/local",
-      "description": "For a person at the keyboard: step-by-step and overnight work, handoff, device, secrets, release and reset procedures, plan questioning, and the shared MCP servers."
+      "source": "./plugins/local"
     },
     {
       "name": "mobile",
-      "source": "./plugins/mobile",
-      "description": "Kotlin Multiplatform, Swift and SwiftUI written well, and mobile screen design."
+      "source": "./plugins/mobile"
     },
     {
       "name": "web",
-      "source": "./plugins/web",
-      "description": "TypeScript, React, shadcn/ui and Playwright written well, and motion design."
+      "source": "./plugins/web"
     },
     {
       "name": "backend",
-      "source": "./plugins/backend",
-      "description": "NestJS, C# and PostgreSQL written well."
+      "source": "./plugins/backend"
     },
     {
       "name": "infra",
-      "source": "./plugins/infra",
-      "description": "Terraform on Azure written well."
+      "source": "./plugins/infra"
     }
   ]
 }

@@ -1,6 +1,6 @@
 ---
 name: flow-handoff
-description: Write the session handoff to tasks/handoff.md so a fresh session can continue. Use when the user says they're starting a new session or leaving ("nueva sesión", "voy a crear una nueva sesión", "empiezo otra sesión", "me voy", "handoff"), even mid-task.
+description: Write the session handoff to tasks/handoff.md so a fresh session can continue. Use when the user says they're starting a new session or leaving ("new session", "I'm leaving", "handoff"), even mid-task.
 ---
 
 # Session handoff

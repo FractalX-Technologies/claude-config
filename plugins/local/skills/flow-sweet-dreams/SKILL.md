@@ -1,6 +1,6 @@
 ---
 name: flow-sweet-dreams
-description: Night mode - plan tonight's work with the user before they leave, then work alone until morning in automatic mode, one branch with a tested commit per phase, and a morning report in tasks/night.md that says how to try each change. Use when the user wants work done overnight or while they sleep ("sweet dreams", "trabaja toda la noche", "déjalo trabajando esta noche", "mientras duermo", "overnight").
+description: Night mode - plan tonight's work with the user before they leave, then work alone until morning in automatic mode, one branch with a tested commit per phase, and a morning report in tasks/night.md that says how to try each change. Use when the user wants work done overnight or while they sleep ("sweet dreams", "leave it working tonight").
 argument-hint: "What to do tonight (tasks, issues, a handoff or a plan file)"
 ---
 

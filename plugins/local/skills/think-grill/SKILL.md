@@ -1,6 +1,6 @@
 ---
 name: think-grill
-description: Interview the user in rounds about a plan, design or decision until nothing is left assumed, each question with a recommended answer. Use only when the user asks for it ("grill me", "grílame", "hazme preguntas sobre el plan", "stress-test this by asking me").
+description: Interview the user in rounds about a plan, design or decision until nothing is left assumed, each question with a recommended answer. Use only when the user asks for it ("grill me", "ask me questions about the plan", "stress-test this by asking me").
 ---
 
 # Grilling
@@ -13,7 +13,7 @@ branches into the decisions that hang off it.
 The **frontier** is every open decision whose prerequisites are settled: the questions you can ask now without
 guessing an answer you haven't heard. Ask the whole frontier in one round, then wait.
 
-- Number each question and give your recommended answer, worded so "sí" accepts it.
+- Number each question and give your recommended answer, worded so "yes" accepts it.
 - A question with 2–4 clear options: use `AskUserQuestion` (up to 4 per call, recommended option first). Otherwise:
 
   ```

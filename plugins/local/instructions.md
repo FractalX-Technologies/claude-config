@@ -4,12 +4,8 @@ For a session with me at the keyboard. It adds to *How work is done*.
 
 ## About me
 
-My stack, projects and machine live in `~/.claude/personal.md`, outside the shared config. It is loaded after this
-file.
-
-## Language
-
-- Answer in Spanish.
+My stack, projects, machine and the language to answer me in live in `~/.claude/personal.md`, outside the shared
+config. It is loaded after this file.
 
 ## Decisions
 
@@ -18,7 +14,7 @@ file.
   Don't ask what my message or a handoff already names, for read-only work (questions, searches, reviews), or in a
   subagent or a run nobody answers: those are automatic, with tests.
 - **Careful**: the `flow-slices` skill. Each slice is built, tested and reviewed, then waits for my OK before its
-  commit and before the next slice starts. It wins over every "without asking" in these rules; "automático" at a
+  commit and before the next slice starts. It wins over every "without asking" in these rules; "automatic" at a
   gate switches the rest of the task to automatic.
 - **Automatic** (also my "no"): don't ask me to confirm plans, scope or ordinary decisions: pick what a senior
   colleague would pick, do the work, and state the assumption in one line so I can push back. Ask only at a real

@@ -1,6 +1,6 @@
 ---
 name: flow-refactor
-description: Refactor existing code without changing its behaviour - audit first, tests before moving anything, fixes in a safe order, and a handoff at the end. Use when the user asks to refactor, modernize, clean up or tidy existing code ("limpia este archivo", "moderniza esta pantalla"), not for new features or bug fixes.
+description: Refactor existing code without changing its behaviour - audit first, tests before moving anything, fixes in a safe order, and a handoff at the end. Use when the user asks to refactor, modernize, clean up or tidy existing code, not for new features or bug fixes.
 ---
 
 # Refactor

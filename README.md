@@ -19,10 +19,11 @@ path, and the hooks share `lib/`.
 | `plugins/*/skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `plugins/core/agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `plugins/core/hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](plugins/core/hooks/README.md) |
-| `plugins/local/.mcp.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` / `fractalx-hq-dev` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
+| `plugins/local/.mcp.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account) and `vercel` (each person signs in, see [Vercel](#vercel)) |
 
-Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `~/.claude/CLAUDE.md` imports last
-and which never leaves your machine.
+Your own facts (stack, projects, machine, the language Claude answers you in) go in `~/.claude/personal.md`, which
+`~/.claude/CLAUDE.md` imports last and which never leaves your machine. The repo itself is English only and doesn't
+name the organisation that hosts it: `test/content.test.mjs` fails on either.
 
 ## Install
 
@@ -98,6 +99,9 @@ Add it to `plugins/local/.mcp.json` under `mcpServers`, by name, in the shape `c
 - One that needs a token or a client secret (Infisical's `@infisical/mcp`, which reads and writes secrets) is added
   by hand on each machine with `claude mcp add --scope user`, from a terminal outside a Claude session.
 - A changed entry doesn't replace one already registered: remove the old one first (`claude mcp remove <name>`).
+- A server of one organisation's own (its internal API) doesn't go there either: that organisation's repo documents
+  the `claude mcp add-json --scope user` line for it. A server this repo stops listing stays registered where it
+  was, and `--uninstall` no longer knows it: `claude mcp remove <name>` takes it away.
 
 ### Vercel
 
@@ -105,8 +109,8 @@ Add it to `plugins/local/.mcp.json` under `mcpServers`, by name, in the shape `c
 and sign in; grant it only the teams you work on. It sees what your Vercel account sees: deployments, build and
 runtime logs, analytics, projects.
 
-- FractalX's projects live in the team **FractalX** (slug `fractal-x`, id `team_fKjUj7IJfXGXLZ7yuGY90l24`), not in
-  your account's default team: name it in each request ("in the FractalX team").
+- Projects that live in a team, not in your account's default one: write the team's name and id in
+  `~/.claude/personal.md`, so Claude names it in each request.
 - A 403 "re-authenticate to this scope" means the sign-in didn't grant that team: Claude calls
   `authorize_team_access` and hands you a one-time link to approve.
 
@@ -118,29 +122,11 @@ The `vercel-guard` hook decides per tool, because the grant is your whole accoun
 - Everything else asks: deploys, promotes and rollbacks, DNS, env vars, firewall, settings, feedback to Vercel. In
   auto mode that is a refusal; run it yourself or approve it outside that mode.
 
-### FractalX HQ
-
-`install.sh` registers HQ's two servers, each with the public Auth0 client id of "HQ for Claude Code":
-
-| Name | Environment | Address |
-|---|---|---|
-| `fractalx-hq` | production | `https://hq-api.fractalx.io/mcp` |
-| `fractalx-hq-dev` | dev | `https://hq-api-dev.fractalx.io/mcp` |
-
-The first time, run `/mcp` in a session, pick the server and sign in with your HQ account: you get your own role and
-workspace, and that environment's workspace admin must have turned on Settings › AI tools.
-
-- Each one signs in on its own: a token for dev's is refused by production's. Name the environment in each request
-  ("in HQ dev"), since both offer the same tools.
-- The callback port is `43110`, the one callback Auth0 has for Claude Code: on another port the sign-in is refused.
-- It reads products, Media and posts, and writes only drafts (with "Write drafts" on); a person publishes in HQ.
-  What each tool does: `docs/MCP.md` in the `fractalx-hq` repo.
-
 ### Auth0
 
 The Auth0 MCP server reads the tenant: applications, APIs, Actions, forms and, above all, its logs when a sign-in
-fails. It never writes: there is one tenant, production's, and every change to it is Terraform code in the platform
-IaC repo (`projects/auth0`), applied by its pipeline.
+fails. It never writes: the tenant is production's, and every change to it is Terraform code in the platform IaC repo,
+applied by its pipeline.
 
 Each person adds it once, from a terminal outside a Claude session:
 
