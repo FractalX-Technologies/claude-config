@@ -205,7 +205,21 @@ Review 4 — factory profile:
   `.mcp.json` are honoured; `dangerous-commands` now refuses `docker compose up` and a bare `pip install` there;
   `git tag -l` is denied with the rest of `git tag`; a default branch not named `main` or `master`, a bare
   `git push` on it, and anything inside a script are the server's to stop.
-- Commit: pending.
+- Commit: `6acd3bf` `feat(factory): add a profile for a run nobody watches`. CI green on macOS and Linux; this Mac
+  updated: `settings.json` identical, no backup, nothing dangling. A factory install from `main` into a temp
+  folder: `~/.claude` untouched, 15 hooks at the folder's address, 45 deny rules, no updater, and its
+  `protect-config` refuses where a person's would ask.
+
+Closing review:
+- Live on `main`: plugin folders (`core`, `local`, `factory`, four stacks), `--stacks`, `--profile` and
+  `--config-dir`, instructions per driver, English only and no host organisation's names, manifests and a
+  marketplace file. Six slices, six commits, every one green on macOS and Linux and checked on this Mac.
+- Nothing points at the old layout: no root `CLAUDE.md`, `skills/`, `rules/`, `agents/`, `hooks/` or `mcp/`.
+- Left for the owner: other machines update by themselves within six hours; the removed names and ids stay in
+  the history of `main`; an organisation's own MCP servers are documented in that organisation's repo.
+- Next, each its own task: the first workflow that starts a factory run (pull request review), with the server's
+  lock (a ruleset on the default branch, a token that only opens pull requests) and the first real unattended
+  run in a config folder of its own; then issue to pull request, then answering a review.
 
 ## Plugin route — not supported yet
 
