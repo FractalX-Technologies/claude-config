@@ -1,0 +1,7 @@
+{
+  "name": "factory",
+  "description": "For a run nobody watches: its instructions (never ask, always with tests, a branch and a draft pull request, stop when stuck) and the commands it is denied.",
+  "dependencies": [
+    "core"
+  ]
+}

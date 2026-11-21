@@ -1,8 +1,19 @@
 # Shared by the PreToolUse guards. Source it; don't run it.
 
+# A run nobody watches has no one to ask, whatever mode it was started in. Its config folder says what it is:
+# install.sh --profile factory writes the profile there.
+unattended() {
+  local f="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/claude-config.json"
+  [ -f "$f" ] && [ "$(jq -r '.profile // ""' "$f" 2>/dev/null)" = factory ]
+}
+
 # Ask where Claude Code can show a confirmation prompt; refuse in any other mode (bypass, headless),
 # where the docs don't promise that an "ask" reaches the user.
 ask_or_deny() {                        # $1 = permission mode, $2 = message
+  if unattended; then
+    printf 'DENIED — %s\nNobody watches this run, so nothing can be confirmed: this refusal is final. Do the task another way, or comment on what blocks it and stop.\n' "$2" >&2
+    exit 2
+  fi
   case "$1" in
     default|acceptEdits|plan)
       jq -n --arg r "$2" '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $r}}'

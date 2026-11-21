@@ -48,3 +48,43 @@ test('MCP servers live in core or local, in the form a plugin takes', () => {
   assert.ok(servers.length > 0, 'no plugin ships an MCP server');
   assert.deepEqual(servers.filter((s, i) => servers.indexOf(s) !== i), [], 'a server is listed twice');
 });
+
+// A settings fragment is merged into the install's settings.json: only what install.sh knows how to merge and to
+// take back belongs in it.
+test('a plugin\'s settings fragment holds deny rules and nothing else', () => {
+  for (const plugin of plugins.filter((p) => existsSync(path.join(KIT, 'plugins', p, 'settings.json')))) {
+    const fragment = json(`plugins/${plugin}/settings.json`);
+    assert.deepEqual(Object.keys(fragment), ['permissions'], plugin);
+    assert.deepEqual(Object.keys(fragment.permissions), ['deny'], plugin);
+    assert.ok(fragment.permissions.deny.every((rule) => /^Bash\(.+\)$/.test(rule)), plugin);
+  }
+});
+
+// What a run nobody watches may never do, and what it must still be able to do. `*` in a rule is any text.
+test('the factory denies merging, pushing to the default branch, tags, releases and applying infrastructure', () => {
+  const rules = json('plugins/factory/settings.json').permissions.deny
+    .map((rule) => new RegExp(`^${rule.slice(5, -1).split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`));
+  const denied = (command) => rules.some((rule) => rule.test(command));
+  for (const command of ['gh pr merge 12 --squash', 'gh pr merge', 'gh pr review 12 --approve',
+    'git push origin main', 'git push -u origin main', 'git push origin HEAD:main', 'git push origin HEAD:refs/heads/main',
+    'git push --force origin main', 'git push origin master', 'git push origin main --force', 'git push origin +main',
+    'git push --all', 'git push --mirror origin', 'git push --follow-tags', 'git -C . push origin HEAD:main', 'git -c a.b=c push',
+    'git tag v1.2.3', 'git -C . tag v1', 'git push origin v1.2.3 --tags', 'git push --tags', 'git push origin refs/tags/v1',
+    'gh release create v1.2.3', 'gh release upload v1 app.zip', 'gh release delete v1', 'gh workflow run release.yml',
+    'gh api -X PUT repos/o/r/pulls/12/merge', 'gh api --method POST repos/o/r/git/refs', 'gh api repos/o/r/releases -f tag_name=v1',
+    'gh api repos/o/r/releases -F draft=false', 'gh api repos/o/r/releases --input body.json',
+    'npm publish', 'npm version patch', 'pnpm publish --no-git-checks', 'yarn publish',
+    'terraform apply -auto-approve', 'terraform destroy', 'terraform -chdir=infra apply -auto-approve',
+    './install.sh --uninstall --config-dir /tmp/x/.claude']) {
+    assert.ok(denied(command), `allowed: ${command}`);
+  }
+  for (const command of ['git push -u origin factory/issue-12', 'git push origin fix/main-menu', 'git push origin maintenance',
+    'git push', 'git push --force-with-lease origin factory/issue-12', 'git -C sub status', 'git fetch origin main',
+    'git merge origin/main', 'git log --tags', 'gh pr create --draft --title x', 'gh pr comment 12 --body x', 'gh pr view 12',
+    'gh pr review 12 --comment --body x', 'gh run watch 5', 'gh release list', 'gh release view v1',
+    'gh api repos/o/r/pulls/12/comments', 'gh api repos/o/r/pulls/12/comments --paginate', 'terraform plan', 'terraform plan -destroy',
+    'terraform validate', 'npm run build', 'npm test']) {
+    assert.ok(!denied(command), `denied: ${command}`);
+  }
+});
+

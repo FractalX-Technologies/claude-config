@@ -2,23 +2,28 @@
 # Links this repo's plugins into ~/.claude, registers its hooks in ~/.claude/settings.json and its MCP servers for
 # the user. Rules, agents and hooks stay whole in plugins/core, one link each; skills come from every plugin;
 # CLAUDE.md is written, to import the plugins' instructions.
+# --profile factory installs for a run nobody watches instead, into a folder of its own (--config-dir).
 # Safe to re-run: scripts/update.sh runs it after every pull, so skills added upstream get linked and removed ones
 # unlinked. Whatever of yours it replaces is moved to ~/.claude/backups/, never deleted.
 set -euo pipefail
 
 kit="$(cd "$(dirname "$0")" && pwd -P)"
 core="$kit/plugins/core"
-claude="${CLAUDE_HOME:-$HOME/.claude}"
 mode=install
 quiet=0
 
 usage() {
   cat <<'EOF'
-Usage: install.sh [--stacks <list>] [--uninstall] [--quiet]
+Usage: install.sh [--profile <name>] [--config-dir <dir>] [--stacks <list>] [--uninstall] [--quiet]
 
   (no flag)        link rules, agents, hooks and the skills into ~/.claude, write the CLAUDE.md that imports the
                    plugins' instructions, register the hooks and the MCP servers of the plugins' .mcp.json
-  --stacks <list>  whose skills to link besides core and local: stacks separated by commas (mobile,web), `all`
+  --profile <name> who drives the sessions: `local` (the default), a person at the keyboard, or `factory`, a run
+                   nobody watches: the factory plugin where the local one would be, its deny rules in
+                   settings.json, no MCP server, no auto-update, no personal.md. Remembered like the stacks
+  --config-dir <dir>  install into <dir> and leave ~/.claude alone; sessions read it through CLAUDE_CONFIG_DIR.
+                   The factory profile needs it, in a folder named .claude, and owns that folder's settings.json
+  --stacks <list>  whose skills to link besides the profile's: stacks separated by commas (mobile,web), `all`
                    (the default) or `none`. The choice is remembered for the runs that follow
   --uninstall      remove those links, the CLAUDE.md it wrote, hooks and MCP servers; backups and
                    ~/.claude/personal.md stay
@@ -28,10 +33,16 @@ EOF
 
 stacks_arg=all
 stacks_given=0
+profile_arg=""
+config_dir=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --uninstall) mode=uninstall ;;
     --quiet) quiet=1 ;;
+    --profile) [ $# -ge 2 ] || { usage >&2; exit 64; }; profile_arg="$2"; shift ;;
+    --profile=*) profile_arg="${1#--profile=}" ;;
+    --config-dir) [ $# -ge 2 ] && [ -n "$2" ] || { usage >&2; exit 64; }; config_dir="$2"; shift ;;
+    --config-dir=?*) config_dir="${1#--config-dir=}" ;;
     --stacks) [ $# -ge 2 ] || { usage >&2; exit 64; }; stacks_arg="$2"; stacks_given=1; shift ;;
     --stacks=*) stacks_arg="${1#--stacks=}"; stacks_given=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -42,24 +53,72 @@ done
 
 say() { [ "$quiet" = 1 ] || printf '%s\n' "$*"; }
 command -v jq >/dev/null 2>&1 || { echo "install.sh needs jq: brew install jq (macOS) or apt install jq" >&2; exit 1; }
+from_home() { case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }
+
+claude="${CLAUDE_HOME:-$HOME/.claude}"
+if [ -n "$config_dir" ]; then
+  case "$config_dir" in /*) claude="$config_dir" ;; *) claude="$PWD/$config_dir" ;; esac
+fi
+claude="${claude%/}"
+shown=$(from_home "$claude")
+# Where settings.json finds the hooks. ~/.claude is written from $HOME: other config folders keep a copy of that
+# settings.json, and it is the one address they all can reach.
+if [ "$claude" = "$HOME/.claude" ]; then
+  hooks_at='"$HOME"/.claude/hooks/'
+else
+  # Any other folder is written whole inside each hook command, between double quotes: what a shell would expand
+  # there would register hooks that point nowhere, and a guard that isn't found is a guard that is off.
+  case "$claude" in
+    *[\"\$\`\\]*|*$'\n'*) printf 'install.sh: the config folder takes a path without ", $, ` or \\: %s\n' "$claude" >&2; exit 64 ;;
+  esac
+  hooks_at="\"$claude\"/hooks/"
+fi
 
 backup="$claude/backups/claude-config-$(date +%Y%m%d-%H%M%S)"
-# What this install chose (today: its stacks), so the auto-update's run with no flag keeps it.
+# What this install chose (its profile, its stacks), so a later run with no flag keeps it.
 state="$claude/claude-config.json"
 settings="$claude/settings.json"
 updater="\"$kit/scripts/update.sh\""
 claude_cli="${CLAUDE_CLI:-claude}"
 user_config="${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
 
-# Every install gets these plugins; each other folder of plugins/ is a stack.
-base_plugins="core local"
+# Every install gets core and its profile's plugin; each other folder of plugins/ is a stack.
+profiles="local factory"
 
 all_stacks() {
   local p
   for p in "$kit"/plugins/*/; do
     p=$(basename "$p")
-    case " $base_plugins " in *" $p "*) ;; *) printf '%s\n' "$p" ;; esac
+    case " core $profiles " in *" $p "*) ;; *) printf '%s\n' "$p" ;; esac
   done
+}
+
+# Sets $profile and $base_plugins: the flag's, else the one this folder was installed with, else local.
+choose_profile() {
+  local had=local
+  if [ -f "$state" ]; then had=$(jq -r '.profile // "local"' "$state" 2>/dev/null) || had=local; fi
+  case " $profiles " in *" $had "*) ;; *) had=local ;; esac
+  profile="${profile_arg:-$had}"
+  case " $profiles " in
+    *" $profile "*) ;;
+    *) printf 'install.sh: "%s" is no profile. Profiles: %s.\n' "$profile" "$profiles" >&2; exit 64 ;;
+  esac
+  base_plugins="core $profile"
+  [ "$mode" = install ] || return 0
+  if [ "$profile" = factory ]; then
+    # The guards know a config folder by its name, however a command spells the way to it.
+    case "$config_dir" in
+      "") printf 'install.sh: the factory profile installs into a folder of its own: --config-dir <dir>/.claude\n' >&2; exit 64 ;;
+      .claude|*/.claude|*/.claude/) ;;
+      *) printf 'install.sh: a factory folder is named .claude, so the guards protect it: --config-dir %s/.claude\n' "${config_dir%/}" >&2; exit 64 ;;
+    esac
+  fi
+  # One profile leaves behind what the other never had (the updater, MCP servers, deny rules): no switching in place.
+  if [ "$profile" != "$had" ] && points_into_kit "$claude/hooks"; then
+    printf 'install.sh: %s holds a %s install. Uninstall it first: install.sh --uninstall%s\n' \
+      "$shown" "$had" "${config_dir:+ --config-dir $config_dir}" >&2
+    exit 64
+  fi
 }
 
 # Sets $stacks, one per line: the flag's list, else the remembered one, else every stack.
@@ -87,18 +146,23 @@ choose_stacks() {
   esac
 }
 
-# `all` is the default, so it is remembered as no choice: a stack added upstream later gets linked too.
-remember_stacks() {
-  [ "$stacks_given" = 1 ] || return 0
+# Passes the state file through a jq filter, keeping its other keys. A state that holds nothing is no file.
+save_state() {                         # jq's arguments
   local old='{}' new
   if [ -f "$state" ]; then old=$(jq -c . "$state" 2>/dev/null) || old='{}'; fi
-  if [ "$stacks_arg" = all ]; then
-    new=$(printf '%s' "$old" | jq -c 'del(.stacks)')
-  else
-    new=$(printf '%s' "$stacks" | jq -R -s -c --argjson old "$old" '$old + {stacks: (split("\n") | map(select(. != "")))}')
-  fi
+  new=$(printf '%s' "$old" | jq -c "$@")
   [ "$new" != "$old" ] || return 0
   if [ "$new" = '{}' ]; then rm -f "$state"; else printf '%s\n' "$new" > "$state"; fi
+}
+
+# The defaults are remembered as no choice: `all`, so a stack added upstream later gets linked too.
+remember() {
+  if [ -n "$profile_arg" ]; then
+    if [ "$profile" = local ]; then save_state 'del(.profile)'; else save_state --arg p "$profile" '.profile = $p'; fi
+  fi
+  [ "$stacks_given" = 1 ] || return 0
+  if [ "$stacks_arg" = all ]; then save_state 'del(.stacks)'
+  else save_state --arg s "$stacks" '.stacks = ($s | split("\n") | map(select(. != "")))'; fi
 }
 
 # Every link this kit owns, as "source<TAB>link".
@@ -115,10 +179,9 @@ links() {
 
 points_into_kit() { [ -L "$1" ] && case "$(readlink "$1")" in "$kit"/*) return 0 ;; esac; return 1; }
 
-# CLAUDE.md is written, not linked: one import per plugin that has instructions, then the user's own facts.
+# CLAUDE.md is written, not linked: one import per plugin that has instructions, then a person's own facts.
 # Paths start at ~ where they can: other config folders read this file through an import of their own.
 instructions_marker='<!-- Written by claude-config (install.sh). Edit the files it imports, not this one: the next run rewrites it. -->'
-from_home() { case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }
 
 instructions() {
   local p
@@ -126,7 +189,7 @@ instructions() {
   for p in $base_plugins; do
     [ -f "$kit/plugins/$p/instructions.md" ] && printf '@%s\n' "$(from_home "$kit/plugins/$p/instructions.md")"
   done
-  printf '@%s\n' "$(from_home "$claude/personal.md")"
+  if [ "$profile" = local ]; then printf '@%s\n' "$(from_home "$claude/personal.md")"; fi
 }
 
 # The installer's own file: the marker, then nothing but imports. One the user added lines to is theirs.
@@ -152,14 +215,14 @@ write_instructions() {
   elif [ -e "$dst" ] || [ -L "$dst" ]; then move_to_backup "$dst"; fi
   mkdir -p "$claude"
   printf '%s\n' "$new" > "$dst.tmp" && mv "$dst.tmp" "$dst"
-  say "  wrote ~/.claude/CLAUDE.md"
+  say "  wrote $shown/CLAUDE.md"
 }
 
 move_to_backup() {                     # $1 = path under $claude
   local rel="${1#"$claude"/}"
   mkdir -p "$(dirname "$backup/$rel")"
   mv "$1" "$backup/$rel"
-  say "  backed up ~/.claude/$rel"
+  say "  backed up $shown/$rel"
 }
 
 link() {                               # $1 = source, $2 = link
@@ -169,30 +232,53 @@ link() {                               # $1 = source, $2 = link
   elif [ -e "$2" ] || [ -L "$2" ]; then move_to_backup "$2"; fi
   mkdir -p "$(dirname "$2")"
   ln -s "$1" "$2"
-  say "  linked ~/.claude/${2#"$claude"/}"
+  say "  linked $shown/${2#"$claude"/}"
 }
 
-# The kit's hooks: the core plugin's hooks.json plus the updater, keyed by event.
-# hooks.json names each script from the plugin root. It is registered at ~/.claude/hooks, where the hooks link
-# answers: other config folders keep a copy of settings.json, and that address is the one they all can reach.
+# The kit's hooks, keyed by event: the core plugin's hooks.json, each script at this install's hooks link instead
+# of the plugin root. A person's machine also gets the updater; a factory folder is installed by the workflow that
+# uses it, at the commit that workflow chose.
 kit_hooks() {
-  jq --arg updater "$updater" '.hooks
-    | (.. | objects | select(has("command")) | .command) |= sub("^\"\\$\\{CLAUDE_PLUGIN_ROOT\\}\"/hooks/"; "\"$HOME\"/.claude/hooks/")
-    | .SessionStart = ((.SessionStart // []) + [{matcher: "startup", hooks: [{type: "command", command: $updater, timeout: 10}]}])' \
+  jq --arg at "$hooks_at" --arg updater "$updater" --arg profile "$profile" '.hooks
+    | (.. | objects | select(has("command")) | .command) |= sub("^\"\\$\\{CLAUDE_PLUGIN_ROOT\\}\"/hooks/"; $at)
+    | if $profile != "local" then . else
+        .SessionStart = ((.SessionStart // []) + [{matcher: "startup", hooks: [{type: "command", command: $updater, timeout: 10}]}])
+      end' \
     "$core/hooks/hooks.json"
+}
+
+# The deny rules of the profile's plugins: a settings.json there is a fragment of the install's own.
+kit_deny() {
+  local p f
+  for p in $base_plugins; do
+    f="$kit/plugins/$p/settings.json"
+    if [ -f "$f" ]; then jq -c '.permissions.deny // []' "$f" || return 1; fi
+  done | jq -s -c 'add // []'
+}
+
+# Read once, before anything changes: an install that could not read its hooks or its deny rules must not look
+# like one that worked. A run nobody watches without deny rules is not installed at all.
+read_kit() {
+  kit_hooks_json=$(kit_hooks)
+  kit_deny_json=$(kit_deny)
+  if [ "$profile" = factory ] && [ "$(printf '%s' "$kit_deny_json" | jq 'length')" = 0 ]; then
+    printf 'install.sh: plugins/factory/settings.json holds no deny rules.\n' >&2; exit 1
+  fi
 }
 
 write_settings() {                     # stdin = new settings; writes only on a real change
   local new; new=$(cat)
+  [ -n "$new" ] || { printf 'install.sh: no settings to write: %s is left as it was.\n' "$shown/settings.json" >&2; exit 1; }
   if [ -f "$settings" ] && [ "$(jq -S . "$settings")" = "$(printf '%s' "$new" | jq -S .)" ]; then return 0; fi
   if [ -f "$settings" ]; then mkdir -p "$backup"; cp "$settings" "$backup/settings.json"; fi
   printf '%s\n' "$new" > "$settings.tmp" && mv "$settings.tmp" "$settings"
-  say "  updated ~/.claude/settings.json"
+  say "  updated $shown/settings.json"
 }
 
-# The kit's MCP servers, as "name<TAB>config".
+# The kit's MCP servers, as "name<TAB>config". A run nobody watches gets none: nobody is there to sign in.
 kit_mcp() {
   local p f
+  [ "$profile" = local ] || return 0
   for p in $base_plugins; do
     f="$kit/plugins/$p/.mcp.json"
     if [ -f "$f" ]; then jq -r '(.mcpServers // {}) | to_entries[] | "\(.key)\t\(.value | tojson)"' "$f"; fi
@@ -249,20 +335,26 @@ install() {
       rm "$l"; say "  unlinked skill $(basename "$l")"
     fi
   done
-  remember_stacks
+  remember
 
-  if [ ! -e "$claude/personal.md" ]; then
+  if [ "$profile" = local ] && [ ! -e "$claude/personal.md" ]; then
     printf '%s\n' '<!-- Your own facts for Claude: stack, projects, machine, the language to answer in. Imported by CLAUDE.md; never shared. -->' \
       > "$claude/personal.md"
-    say "  created ~/.claude/personal.md: write your stack and projects there"
+    say "  created $shown/personal.md: write your stack and projects there"
   fi
 
-  # Append each kit hook whose command isn't registered for that event yet; the user's own hooks stay as they are.
-  current_settings | jq --argjson kit "$(kit_hooks)" '
-    reduce ($kit | to_entries[]) as $e (.;
-      [ (.hooks[$e.key] // [])[] | .hooks[]?.command ] as $have
-      | [ $e.value[] | .hooks |= map(select(.command as $c | $have | index($c) | not)) | select(.hooks | length > 0) ] as $add
-      | if ($add | length) > 0 then .hooks[$e.key] = ((.hooks[$e.key] // []) + $add) else . end)' | write_settings
+  if [ "$profile" = factory ]; then
+    # What was in the folder may be the last run's doing: hooks switched off, a wide allow list, the kit's commands
+    # under a matcher that never fires. A factory's settings are the kit's alone; the rest goes to the backup.
+    jq -n --argjson kit "$kit_hooks_json" --argjson deny "$kit_deny_json" '{hooks: $kit, permissions: {deny: $deny}}' | write_settings
+  else
+    # Append each kit hook whose command isn't registered for that event yet; the user's own hooks stay as they are.
+    current_settings | jq --argjson kit "$kit_hooks_json" '
+      reduce ($kit | to_entries[]) as $e (.;
+        [ (.hooks[$e.key] // [])[] | .hooks[]?.command ] as $have
+        | [ $e.value[] | .hooks |= map(select(.command as $c | $have | index($c) | not)) | select(.hooks | length > 0) ] as $add
+        | if ($add | length) > 0 then .hooks[$e.key] = ((.hooks[$e.key] // []) + $add) else . end)' | write_settings
+  fi
   register_mcp
   say "Done. Restart Claude Code and check /hooks."
 }
@@ -270,22 +362,28 @@ install() {
 uninstall() {
   say "Removing claude-config links, hooks and MCP servers"
   for l in "$claude/CLAUDE.md" "$claude/rules" "$claude/agents" "$claude/hooks" "$claude"/skills/*; do
-    if points_into_kit "$l"; then rm "$l"; say "  unlinked ~/.claude/${l#"$claude"/}"; fi
+    if points_into_kit "$l"; then rm "$l"; say "  unlinked $shown/${l#"$claude"/}"; fi
   done
-  if wrote_instructions "$claude/CLAUDE.md"; then rm "$claude/CLAUDE.md"; say "  removed ~/.claude/CLAUDE.md"; fi
+  if wrote_instructions "$claude/CLAUDE.md"; then rm "$claude/CLAUDE.md"; say "  removed $shown/CLAUDE.md"; fi
   if [ -f "$settings" ]; then
-    jq --argjson kit "$(kit_hooks)" '
+    jq --argjson kit "$kit_hooks_json" --argjson deny "$kit_deny_json" '
       [ $kit[][] | .hooks[].command ] as $ours
       | if .hooks then
           .hooks |= (map_values(map(.hooks |= map(select(.command as $c | $ours | index($c) | not)))
                                 | map(select(.hooks | length > 0)))
                      | with_entries(select(.value | length > 0)))
-        else . end' "$settings" | write_settings
+        else . end
+      | if .permissions.deny then .permissions.deny -= $deny else . end
+      | if .permissions.deny == [] then del(.permissions.deny) else . end
+      | if .permissions == {} then del(.permissions) else . end
+      | if .hooks == {} then del(.hooks) else . end' "$settings" | write_settings
   fi
   unregister_mcp
   rm -f "$state"
-  say "Done. What install.sh replaced is in ~/.claude/backups/claude-config-*."
+  say "Done. What install.sh replaced is in $shown/backups/claude-config-*."
 }
 
+choose_profile
+read_kit
 if [ "$mode" = install ]; then choose_stacks; check_instructions; fi
 "$mode"

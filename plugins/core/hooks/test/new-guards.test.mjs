@@ -101,8 +101,9 @@ test('protect-tests: refuses where a prompt is not guaranteed', () => {
 
 // ── protect-config ───────────────────────────────────────────────────────────────────────────────────
 const HOME = sandbox({ '.claude/settings.json': '{}', 'config/hooks/a.sh': '' });
-const cfg = (tool, tool_input, mode = 'default', home = HOME) =>
-  runHook('protect-config', { tool_name: tool, permission_mode: mode, tool_input }, { HOME: home });
+// CLAUDE_CONFIG_DIR is emptied unless a test sets it: the shell that runs the suite may have its own.
+const cfg = (tool, tool_input, mode = 'default', home = HOME, configDir = '') =>
+  runHook('protect-config', { tool_name: tool, permission_mode: mode, tool_input }, { HOME: home, CLAUDE_CONFIG_DIR: configDir });
 
 test('protect-config: writing settings, hooks, MCP config or plugin manifests asks first', () => {
   for (const f of [`${HOME}/.claude/settings.json`, `${HOME}/.claude.json`, `${HOME}/.claude/hooks/a.sh`,
@@ -136,6 +137,52 @@ test('protect-config: when ~/.claude/hooks is a symlink, its real folder is prot
   symlinkSync(path.join(home, 'config/hooks'), path.join(home, '.claude/hooks'));
   assert.ok(asks(cfg('Write', { file_path: path.join(home, 'config/hooks/a.sh'), content: '' }, 'default', home)));
   assert.equal(cfg('Write', { file_path: path.join(home, 'config/hooks/a.sh'), content: '' }, 'bypassPermissions', home).status, 2);
+});
+
+// A session started with CLAUDE_CONFIG_DIR reads its settings and hooks there, not in ~/.claude: a run nobody
+// watches that could edit that folder would switch its own guards off.
+test('protect-config: the config folder the session runs with is protected like ~/.claude', () => {
+  const home = sandbox({ 'runner/config/settings.json': '{}', 'runner/config/notes.md': '', 'kit/hooks/a.sh': '', 'other/settings.json': '{}' });
+  const dir = path.join(home, 'runner/config');
+  symlinkSync(path.join(home, 'kit/hooks'), path.join(dir, 'hooks'));
+  const at = (tool, input, mode = 'default') => cfg(tool, input, mode, home, dir);
+  for (const f of [`${dir}/settings.json`, `${dir}/settings.local.json`, `${dir}/.claude.json`, `${dir}/hooks/a.sh`,
+    path.join(home, 'kit/hooks/a.sh')]) {
+    assert.ok(asks(at('Write', { file_path: f, content: '{}' })), f);
+    assert.equal(at('Write', { file_path: f, content: '{}' }, 'bypassPermissions').status, 2, f);
+  }
+  for (const c of [`echo {} > ${dir}/settings.json`, 'echo {} > "$CLAUDE_CONFIG_DIR/settings.json"', `rm -rf ${dir}/hooks`,
+    'jq . x > ${CLAUDE_CONFIG_DIR}/settings.local.json', `ln -sfn /x ${dir}/hooks`]) {
+    assert.ok(asks(at('Bash', { command: c })), c);
+  }
+  for (const f of [`${dir}/notes.md`, path.join(home, 'other/settings.json')]) {
+    assert.ok(passes(at('Write', { file_path: f, content: '' })), f);
+  }
+  assert.ok(passes(at('Bash', { command: `jq .hooks ${dir}/settings.json` })));
+  // Without the folder there is no guard left: removing or moving it, or the file that says which profile it holds.
+  for (const c of [`rm -rf ${dir}`, 'rm -rf "$CLAUDE_CONFIG_DIR"', `mv ${dir} /tmp/gone`, `rm ${dir}/claude-config.json`,
+    'echo {} > ${CLAUDE_CONFIG_DIR}/claude-config.json']) {
+    assert.ok(asks(at('Bash', { command: c })), c);
+  }
+  for (const c of ['rm -rf ~/.claude', 'mv $HOME/.claude /tmp/gone', 'rm ~/.claude/claude-config.json']) {
+    assert.ok(asks(cfg('Bash', { command: c }, 'default', home)), c);
+  }
+  assert.ok(passes(cfg('Bash', { command: 'ls ~/.claude && mkdir -p ~/.claude/skills' }, 'default', home)));
+  // The same paths are nobody's guardrails for a session that runs with ~/.claude.
+  assert.ok(passes(cfg('Write', { file_path: `${dir}/settings.json`, content: '{}' }, 'default', home)));
+});
+
+// A run nobody watches has no one to ask, whatever permission mode it was started in: its folder says what it is.
+test('a guard that would ask refuses in a factory folder, and still asks in a person\'s', () => {
+  const home = sandbox({ 'runner/.claude/claude-config.json': '{"profile":"factory"}', 'mine/.claude/claude-config.json': '{"stacks":["web"]}' });
+  const write = { file_path: '/repo/.mcp.json', content: '{}' };
+  for (const mode of ['default', 'acceptEdits', 'plan', 'bypassPermissions']) {
+    const r = cfg('Write', write, mode, home, path.join(home, 'runner/.claude'));
+    assert.equal(r.status, 2, mode);
+    assert.match(r.stderr, /nobody/i, mode);
+  }
+  assert.ok(asks(cfg('Write', write, 'default', home, path.join(home, 'mine/.claude'))));
+  assert.ok(asks(cfg('Write', write, 'default', home)));
 });
 
 // ── subagent-cap ─────────────────────────────────────────────────────────────────────────────────────

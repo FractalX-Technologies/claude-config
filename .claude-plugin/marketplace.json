@@ -13,6 +13,10 @@
       "source": "./plugins/local"
     },
     {
+      "name": "factory",
+      "source": "./plugins/factory"
+    },
+    {
       "name": "mobile",
       "source": "./plugins/mobile"
     },

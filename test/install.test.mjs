@@ -97,7 +97,8 @@ test('install writes CLAUDE.md, links rules, agents, hooks and every skill, and 
   assert.ok(lstatSync(path.join(h, '.claude/CLAUDE.md')).isFile(), 'CLAUDE.md is no longer a link');
   for (const item of ['rules', 'agents', 'hooks']) assert.equal(linkOf(h, item), path.join(KIT, CORE, item), item);
   for (const [s, dir] of Object.entries(skills())) assert.equal(linkOf(h, `skills/${s}`), dir, s);
-  for (const plugin of readdirSync(path.join(KIT, 'plugins'))) {
+  // Every plugin a person's install takes: core, local and each stack. The factory plugin belongs to the other profile.
+  for (const plugin of [...BASE, ...stacks()]) {
     assert.ok(Object.values(skills()).some((dir) => dir.startsWith(path.join(KIT, 'plugins', plugin, 'skills'))), `${plugin} links no skill`);
   }
   const all = Object.keys(settingsOf(h).hooks).flatMap((e) => commands(settingsOf(h), e));
@@ -147,8 +148,9 @@ test('install unlinks a skill removed upstream and leaves links it does not own'
 // ── stacks ───────────────────────────────────────────────────────────────────────────────────────────
 // Every install gets core and local; each other plugin is a stack, and --stacks chooses whose skills are linked.
 const BASE = ['core', 'local'];
+const PROFILES = ['local', 'factory'];
 const pluginOf = (dir) => path.relative(path.join(KIT, 'plugins'), dir).split(path.sep)[0];
-const stacks = () => readdirSync(path.join(KIT, 'plugins')).filter((p) => !BASE.includes(p));
+const stacks = () => readdirSync(path.join(KIT, 'plugins')).filter((p) => p !== 'core' && !PROFILES.includes(p));
 // The plugins whose skills are linked in this home.
 const linkedPlugins = (homeDir) => [...new Set(Object.entries(skills())
   .filter(([s]) => existsSync(path.join(homeDir, '.claude/skills', s))).map(([, dir]) => pluginOf(dir)))].sort();
@@ -162,6 +164,167 @@ test('--stacks links the skills of core, local and the chosen stacks only, and r
   assert.deepEqual(linkedPlugins(h), ['backend', 'core', 'local']);
   for (const plugin of ['backend', 'core', 'local']) assert.equal(linkedSkills(h, plugin), skillsOf(plugin), plugin);
   for (const item of ['rules', 'agents', 'hooks']) assert.equal(linkOf(h, item), path.join(KIT, CORE, item), item);
+});
+
+// ── profiles ─────────────────────────────────────────────────────────────────────────────────────────
+// `local` is a person's machine. `factory` is a run nobody watches: a folder of its own, read through
+// CLAUDE_CONFIG_DIR, with the factory plugin where the local one would be.
+const json = (file) => JSON.parse(readFileSync(file, 'utf8'));
+const factoryDeny = () => json(path.join(KIT, 'plugins/factory/settings.json')).permissions.deny;
+const factory = (homeDir, dir, args = [], env = {}) => install(homeDir, ['--profile', 'factory', '--config-dir', dir, ...args], KIT, env);
+// Every file and link under a folder, with what each holds: equal before and after means nothing touched it.
+const snapshot = (dir) => Object.fromEntries(readdirSync(dir, { recursive: true }).sort().map((rel) => {
+  const stat = lstatSync(path.join(dir, rel));
+  if (stat.isSymbolicLink()) return [rel, `-> ${readlinkSync(path.join(dir, rel))}`];
+  return [rel, stat.isDirectory() ? 'dir' : readFileSync(path.join(dir, rel), 'utf8')];
+}));
+// The hooks a folder of its own registers: core's, each at that folder's hooks link.
+const factoryCommands = (dir) => kitCommands().map((c) => c.replace('"$HOME"/.claude/hooks/', `"${dir}"/hooks/`));
+const skillLinks = (dir) => readdirSync(path.join(dir, 'skills')).map((s) => pluginOf(readlinkSync(path.join(dir, 'skills', s))));
+
+test('a factory install holds core, factory and the chosen stacks: no local skill, no MCP server, no updater, and ~/.claude as it was', () => {
+  const h = home();
+  const cli = fakeCli(h);
+  install(h, [], KIT, cli);
+  const before = { claude: snapshot(path.join(h, '.claude')), config: readFileSync(path.join(h, '.claude.json'), 'utf8'), calls: cliCalls(h).length };
+  const dir = path.join(h, 'runner/.claude');
+
+  factory(h, dir, ['--stacks', 'web'], cli);
+
+  assert.deepEqual(snapshot(path.join(h, '.claude')), before.claude, '~/.claude changed');
+  assert.equal(readFileSync(path.join(h, '.claude.json'), 'utf8'), before.config, '~/.claude.json changed');
+  assert.equal(cliCalls(h).length, before.calls, 'the claude CLI was called');
+
+  const imports = readFileSync(path.join(dir, 'CLAUDE.md'), 'utf8').split('\n').filter((l) => l.startsWith('@')).map((l) => l.slice(1));
+  assert.deepEqual(imports, ['core', 'factory'].map((p) => path.join(KIT, 'plugins', p, 'instructions.md')));
+  for (const file of imports) assert.ok(existsSync(file), `${file} is imported and missing`);
+  assert.ok(!existsSync(path.join(dir, 'personal.md')), 'a run nobody watches has no personal facts');
+
+  for (const item of ['rules', 'agents', 'hooks']) assert.equal(readlinkSync(path.join(dir, item)), path.join(KIT, CORE, item), item);
+  assert.deepEqual([...new Set(skillLinks(dir))].sort(), ['core', 'web']);
+  assert.equal(skillLinks(dir).length, skillsOf('core') + skillsOf('web'));
+
+  // Every hook of core, at this folder's own address, each one a script the shell finds there; no updater.
+  const settings = json(path.join(dir, 'settings.json'));
+  const hooks = Object.keys(settings.hooks).flatMap((event) => commands(settings, event));
+  assert.deepEqual(hooks.toSorted(), factoryCommands(dir).toSorted());
+  for (const command of hooks) assert.equal(spawnSync('bash', ['-c', `test -f ${command}`]).status, 0, command);
+  assert.deepEqual(settings.permissions, { deny: factoryDeny() });
+  assert.deepEqual(json(path.join(dir, 'claude-config.json')), { profile: 'factory', stacks: ['web'] });
+});
+
+// What was in the folder before may be the last run's doing. A person's settings are merged around; a factory's are
+// the kit's alone, so guards switched off or a wide allow list never outlive an install.
+test('a factory install replaces the settings it finds: nothing planted there survives, and it is kept in the backup', () => {
+  const h = home();
+  const dir = path.join(h, '.runner/.claude');
+  const planted = {
+    disableAllHooks: true,
+    env: { PATH: '/tmp/evil' },
+    permissions: { allow: ['Bash(*)'], deny: [factoryDeny()[0]] },
+    hooks: { PreToolUse: [{ matcher: 'NoSuchTool', hooks: factoryCommands(dir).map((command) => ({ type: 'command', command })) }] },
+  };
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, 'settings.json'), JSON.stringify(planted));
+  factory(h, dir);
+
+  const settings = json(path.join(dir, 'settings.json'));
+  assert.deepEqual(Object.keys(settings).sort(), ['hooks', 'permissions']);
+  assert.deepEqual(settings.permissions, { deny: factoryDeny() });
+  const kit = json(path.join(KIT, CORE, 'hooks/hooks.json')).hooks;
+  assert.deepEqual(Object.keys(settings.hooks).sort(), Object.keys(kit).sort());
+  for (const [event, groups] of Object.entries(kit)) assert.deepEqual(settings.hooks[event].map((g) => g.matcher), groups.map((g) => g.matcher), event);
+  const [backup] = readdirSync(path.join(dir, 'backups'));
+  assert.deepEqual(json(path.join(dir, 'backups', backup, 'settings.json')), planted);
+
+  const again = factory(h, dir);
+  assert.doesNotMatch(again.stdout, /linked|backed up|updated|wrote/);
+});
+
+// A deny list is what stands between a run nobody watches and a merge. An install that could not read it must not
+// look like one that worked.
+test('a factory install stops, before changing anything, when its deny rules are missing or unreadable', () => {
+  const h = home();
+  const kit = path.join(h, 'kit');
+  cpSync(KIT, kit, { recursive: true, filter: (p) => !p.includes(`${path.sep}.git`) });
+  for (const body of ['{}', '{"permissions":{"deny":[]}}', '{ not json']) {
+    writeFileSync(path.join(kit, 'plugins/factory/settings.json'), body);
+    const r = run(h, ['--profile', 'factory', '--config-dir', path.join(h, '.claude')], kit);
+    assert.notEqual(r.status, 0, body);
+    assert.ok(!existsSync(path.join(h, '.claude')), body);
+  }
+  rmSync(path.join(kit, 'plugins/factory/settings.json'));
+  assert.notEqual(run(h, ['--profile', 'factory', '--config-dir', path.join(h, '.claude')], kit).status, 0);
+  assert.ok(!existsSync(path.join(h, '.claude')));
+});
+
+// The workflow may run install.sh again with the folder alone: it must not turn into a person's install.
+test('a run with no --profile keeps the profile the folder was installed with', () => {
+  const h = home();
+  const dir = path.join(h, 'runner/.claude');
+  factory(h, dir, ['--stacks', 'none']);
+  const before = snapshot(dir);
+  install(h, ['--config-dir', dir]);
+  assert.deepEqual(snapshot(dir), before);
+});
+
+test('the factory profile refuses to install without a folder of its own, and a folder refuses the other profile', () => {
+  const h = home();
+  const alone = run(h, ['--profile', 'factory']);
+  assert.equal(alone.status, 64);
+  assert.match(alone.stderr, /--config-dir/);
+  assert.ok(!existsSync(path.join(h, '.claude')), 'something was installed');
+
+  install(h);
+  const before = snapshot(path.join(h, '.claude'));
+  const over = run(h, ['--profile', 'factory', '--config-dir', path.join(h, '.claude')]);
+  assert.equal(over.status, 64);
+  assert.match(over.stderr, /uninstall/);
+  assert.deepEqual(snapshot(path.join(h, '.claude')), before);
+
+  const unknown = run(h, ['--profile', 'robot', '--config-dir', path.join(h, 'runner/.claude')]);
+  assert.equal(unknown.status, 64);
+  assert.ok(!existsSync(path.join(h, 'runner')));
+
+  // A profile's plugin is no stack: a person's install can't pick up the factory's, or the other way round.
+  for (const name of PROFILES) assert.equal(run(h, ['--stacks', name]).status, 64, name);
+  assert.deepEqual(snapshot(path.join(h, '.claude')), before);
+});
+
+// The guards know a config folder by its name, however a command spells the way to it ($RUNNER_TEMP/.claude/...).
+test('a factory folder must be named .claude', () => {
+  const h = home();
+  const r = run(h, ['--profile', 'factory', '--config-dir', path.join(h, 'runner/config')]);
+  assert.equal(r.status, 64);
+  assert.match(r.stderr, /\.claude/);
+  assert.ok(!existsSync(path.join(h, 'runner')));
+});
+
+// The folder's address is written inside each hook command, between double quotes: what a shell would expand there
+// is refused, since a hook that points nowhere is a guard that is off.
+test('a config folder whose path the shell would rewrite is refused, written whole or from the current folder', () => {
+  const h = home();
+  for (const name of ['a$b', 'a`b', 'a"b', 'a\\b']) {
+    const r = run(h, ['--profile', 'factory', '--config-dir', path.join(h, name, '.claude')]);
+    assert.equal(r.status, 64, name);
+    assert.ok(!existsSync(path.join(h, name)), name);
+  }
+  const cwd = path.join(h, 'a$b');
+  mkdirSync(cwd);
+  const r = spawnSync('bash', [path.join(KIT, 'install.sh'), '--profile', 'factory', '--config-dir', '.claude'], { cwd, encoding: 'utf8', env: envFor(h) });
+  assert.equal(r.status, 64);
+  assert.deepEqual(readdirSync(cwd), []);
+});
+
+test('uninstall of a factory folder removes its links, instructions, hooks and deny rules', () => {
+  const h = home();
+  const dir = path.join(h, 'runner/.claude');
+  factory(h, dir);
+  install(h, ['--uninstall', '--config-dir', dir]);
+  assert.deepEqual(json(path.join(dir, 'settings.json')), {});
+  // The settings as they were before the uninstall are kept, like everything install.sh rewrites.
+  assert.deepEqual(readdirSync(dir).sort(), ['backups', 'settings.json', 'skills']);
+  assert.deepEqual(readdirSync(path.join(dir, 'skills')), []);
 });
 
 // The auto-update re-runs install.sh with no flag: it must not bring back the stacks the user left out.

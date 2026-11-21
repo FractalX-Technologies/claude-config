@@ -15,6 +15,7 @@ path, and the hooks share `lib/`.
 |---|---|---|
 | `plugins/core/instructions.md` | imported by `~/.claude/CLAUDE.md` | What holds in every session: projects, code, secrets, installs, git, subagents |
 | `plugins/local/instructions.md` | imported by `~/.claude/CLAUDE.md` | How Claude works with a person at the keyboard: modes, your machine, when to commit |
+| `plugins/factory/` | a config folder of its own | For a run nobody watches (CI): its instructions and the commands it is denied. See [Factory profile](#factory-profile) |
 | `plugins/core/rules/` | `~/.claude/rules/` | Rules per stack (shared, KMP, Android, iOS, macOS, Next.js, NestJS, .NET, Electron, Supabase, Terraform, GitHub Actions). Each `RULE.md` loads with the files its `paths:` names |
 | `plugins/*/skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `plugins/core/agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
@@ -49,6 +50,33 @@ each one loads only with the files its `paths:` names.
 instructions, appends the hooks to `~/.claude/settings.json` and registers the MCP servers with `claude mcp add-json --scope user`. Your own settings, hooks, skills and MCP servers stay: a
 server of yours with the same name is left as it is. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to
 `~/.claude/backups/claude-config-<date>/`.
+
+### Factory profile
+
+For a session a workflow starts and nobody watches. It goes into a folder of its own, never `~/.claude`:
+
+```bash
+./install.sh --profile factory --config-dir "$RUNNER_TEMP/.claude" --stacks web,backend
+CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
+```
+
+- It gets `core`'s rules, agents, hooks and skills, the chosen stacks' skills, and `plugins/factory/instructions.md`
+  where a person gets `local`'s: never ask, always with tests, a branch and a draft pull request, comment and stop
+  when stuck.
+- The folder's `settings.json` is the kit's alone: core's hooks and the deny rules of
+  `plugins/factory/settings.json`. Whatever was there goes to the folder's `backups/`. The rules deny merging or
+  approving a pull request, pushing to `main` or `master`, tags, releases and publishing a package, starting a
+  workflow, writing through `gh api`, and `terraform apply` or `destroy`.
+- A guard that would ask a person refuses instead, whatever permission mode the run has.
+- No local skill, no MCP server, no auto-update (the workflow picks the commit) and no `personal.md`.
+- The folder is named `.claude`, so the guards protect it however a command spells the way to it. Use a new one for
+  each run (`$RUNNER_TEMP` is emptied between jobs), and pass `--profile factory` every time: a folder installed
+  with one profile refuses the other until `--uninstall`.
+- The runner needs `jq` and `node`: without them the hooks let everything through.
+- The deny rules are the second lock. A command spelled another way gets past a pattern (a script, `bash -c`, a
+  default branch with another name), so the first lock is the server's: a ruleset on the default branch, and a
+  token for the run that can open a pull request and nothing more.
+- The workflows that start such a run are not here: each stage arrives with the workflow that runs it.
 
 ### Plugin manifests
 

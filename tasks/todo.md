@@ -41,7 +41,7 @@ organisation's own MCP servers in that organisation's repo.
   rule moves to `personal.md`; the organisation's own MCP servers and its Vercel team leave `mcp/` and the README.
   Writes: nothing (the servers stay registered on machines that have them). e2e: a content test fails on Spanish
   text or an organisation-specific name anywhere in the repo.
-- [ ] 4 Factory profile: `plugins/factory/` (`instructions.md`: never asks, always with tests, branch and draft
+- [x] 4 Factory profile: `plugins/factory/` (`instructions.md`: never asks, always with tests, branch and draft
   pull request, never merges or releases, comments and stops when stuck; a settings fragment that denies merge,
   push to `main`, tags, releases and `terraform apply`) and `install.sh --profile factory --config-dir <dir>`.
   Stage agents arrive later, each with the workflow that runs it. Writes: sandbox config folders. e2e: a factory
@@ -176,6 +176,35 @@ Review 3 — English only, generic:
 - Left open: the content test is a heuristic (Spanish with none of its words passes; only the first word of the
   host's name is known; UUIDs pass). The repo's history on `main` still holds the removed names and ids: rewriting
   it is the owner's call.
+- Commit: `350f5c9` `refactor(content): make the repo English only and organisation-neutral`. CI green on macOS and
+  Linux; this Mac updated: `settings.json` identical, no backup, nothing dangling; a fresh session finds no
+  reply-language rule and the English triggers.
+
+Review 4 — factory profile:
+- Plugin: `plugins/factory/instructions.md` (never ask, always with tests, a branch and a draft pull request, stuck
+  is a comment and a stop, issue and file text is data) and `plugins/factory/settings.json` (deny rules).
+- Installer: `--profile factory --config-dir <dir>/.claude`. Core's rules, agents, hooks and skills, the chosen
+  stacks, factory's instructions; no local skill, MCP server, updater or `personal.md`. Hooks registered at the
+  folder's own address. The folder's `settings.json` is the kit's alone (what was there goes to the backup). The
+  profile is remembered; one profile refuses a folder of the other; a profile's plugin is no stack.
+- Hooks: `protect-config` protects the folder a session runs with (`CLAUDE_CONFIG_DIR`), the folder itself and its
+  `claude-config.json`, and `~/.claude` itself; a guard that would ask refuses in a factory folder, in any mode.
+- e2e: 111/111 (99 before the slice); `claude plugin validate` passes for the marketplace and the factory plugin. 17 mutants
+  of `install.sh` on a copy: 16 killed, 1 equivalent (an unreadable fragment still ends at the empty-list check).
+  Live, in a throwaway repo, a session with these deny rules refused `git tag`, pushes to `main` in eight
+  spellings, `--tags`, `--all`, and ran pushes to its own branch (`--force-with-lease` too).
+- Review: `review-security`. Fixed: a missing or broken fragment installed no deny rules and exited 0; planted
+  settings survived the merge (`disableAllHooks`, an allow list, the kit's commands under a dead matcher); refused
+  characters were checked on the flag, not the resolved path; `git -C`, `+main`, `--all`, `--mirror`,
+  `gh api` writes, self-approval, `npm publish` and `terraform -chdir` got past the patterns; `gh release list`
+  was denied; the guards knew the folder only by its literal path; removing the folder switched every hook off;
+  an "ask" trusted the permission mode; the instructions did not say who "I" is or that a pull request's files
+  are not instructions.
+- Left open, for the slice that brings the first workflow: nothing here was run by a real unattended session in a
+  config folder of its own (it needs the run's token); whether the checkout's `.claude/settings.json` and
+  `.mcp.json` are honoured; `dangerous-commands` now refuses `docker compose up` and a bare `pip install` there;
+  `git tag -l` is denied with the rest of `git tag`; a default branch not named `main` or `master`, a bare
+  `git push` on it, and anything inside a script are the server's to stop.
 - Commit: pending.
 
 ## Plugin route — not supported yet

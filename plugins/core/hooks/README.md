@@ -10,7 +10,7 @@ Guards that run on every project, whatever Claude remembers. Each one enforces a
 | `session-context` | session start | adds context | Nothing. Injects `tasks/lessons.md` rules and the open decisions in `tasks/todo.md`; says when the repo takes its secrets from Infisical (`.infisical.yaml` at its root) and whether the CLI is installed, or that a repo with a `.env.example` isn't wired to it yet; warns when `jq` is missing (every guard is then off). |
 | `protect-secrets` | before Read, Grep, Bash | **deny** | Reading `.env*` (not `*.example`) and home credential files (`~/.npmrc`, `~/.ssh`, `~/.aws`, `~/.docker`, `~/.kube`…); staging them in git. The Infisical commands that print values: `export`, `user get token`, `secrets` with no `jq`, a run of `env`. |
 | `dangerous-commands` | before Bash | **deny** / ask | **Deny:** `rm -rf` on `/` or home, fork bombs, `curl … \| sh`, `sudo`, `chmod 777`, disk erase. **Ask:** installs onto the machine (brew, `-g`/global packages, bare `pip install`, pipx, `uv tool`, gem, cargo, `go install`, global dotnet tools, workloads, templates, extensions, `az` ones included) and `docker compose up`. The repo's own installs pass: npm/pnpm/yarn/bun, `npx`, `dotnet restore`/`add package`, pod, SwiftPM, `terraform init`, a venv's pip. |
-| `protect-config` | before Edit, Write, Bash | ask | Writing Claude Code settings, hooks folders, `.mcp.json`, plugin manifests, and the real folder behind `~/.claude/hooks` when it's a symlink. Reading is free. |
+| `protect-config` | before Edit, Write, Bash | ask | Writing Claude Code settings, hooks folders, `.mcp.json`, plugin manifests, and the real folder behind `~/.claude/hooks` when it's a symlink; removing or moving `~/.claude` itself. The folder a session runs with (`CLAUDE_CONFIG_DIR`) is protected the same way. Reading is free. |
 | `protect-tests` | before Edit, Write, Bash | ask | Deleting or moving a test file or folder; an edit that adds a skip, `only` or ignore marker (Vitest/Jest/Playwright, JUnit, Swift Testing, XCTest, xUnit, NUnit, pytest). Markers already there are left alone. |
 | `guard-generated` | before Edit, Write | **deny** | Hand-editing an existing file whose header says `Code generated … DO NOT EDIT`. |
 | `guard-lockfiles` | before Edit, Write | **deny** | Hand-editing a lockfile (npm, pnpm, yarn, bun, NuGet, Terraform, SwiftPM, CocoaPods, Bundler, Gradle, Cargo, Poetry, uv). |
@@ -28,6 +28,8 @@ Guards that run on every project, whatever Claude remembers. Each one enforces a
 - **Deny**: exit 2. Claude Code blocks the call and shows the message to Claude.
 - **Ask**: in `default`, `acceptEdits` and `plan` modes the call becomes a confirmation prompt for you. In any
   other mode (bypass, headless) a prompt isn't guaranteed, so it's denied with instructions instead.
+- **Ask, in a factory folder**: always a refusal. A config folder installed with `install.sh --profile factory`
+  says so in its `claude-config.json`, and a run nobody watches has no one to ask.
 - **Tells Claude** (PostToolUse): the edit already happened; exit 2 sends the finding back so Claude fixes it.
 - They match command **text**, so a command that is only being echoed trips them too. Heredoc bodies and
   commit messages are prose and never scanned.
