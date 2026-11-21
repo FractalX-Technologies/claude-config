@@ -37,7 +37,7 @@ Guards that run on every project, whatever Claude remembers. Each one enforces a
 ## Layout
 
 ```
-hooks/
+plugins/core/hooks/
 ├── <name>.sh       the entry points, wired in hooks.json
 ├── hooks.json      which script runs on which event (the `hooks` key of settings.json)
 ├── lib/            shared code: decide.sh (ask or deny), edit.mjs (the file after an edit), the node hooks

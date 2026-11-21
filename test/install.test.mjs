@@ -58,17 +58,36 @@ const kitMcp = (kit = KIT) => JSON.parse(readFileSync(path.join(kit, 'mcp/server
 
 const settingsOf = (homeDir) => JSON.parse(readFileSync(path.join(homeDir, '.claude/settings.json'), 'utf8'));
 const commands = (settings, event) => (settings.hooks?.[event] ?? []).flatMap((g) => g.hooks.map((h) => h.command));
-const kitCommands = (kit = KIT) => Object.values(JSON.parse(readFileSync(path.join(kit, 'hooks/hooks.json'), 'utf8')).hooks)
+// Rules, agents and hooks stay whole in the core plugin: one link each. Skills come from every plugin.
+const CORE = 'plugins/core';
+const kitCommands = (kit = KIT) => Object.values(JSON.parse(readFileSync(path.join(kit, CORE, 'hooks/hooks.json'), 'utf8')).hooks)
   .flat().flatMap((g) => g.hooks.map((h) => h.command));
-const skills = (kit = KIT) => readdirSync(path.join(kit, 'skills')).filter((s) => existsSync(path.join(kit, 'skills', s, 'SKILL.md')));
+// Every skill of the kit, as name → its folder.
+const skills = (kit = KIT) => Object.fromEntries(readdirSync(path.join(kit, 'plugins')).flatMap((plugin) => {
+  const dir = path.join(kit, 'plugins', plugin, 'skills');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((s) => existsSync(path.join(dir, s, 'SKILL.md'))).map((s) => [s, path.join(dir, s)]);
+}));
+const linkOf = (homeDir, rel) => readlinkSync(path.join(homeDir, '.claude', rel));
+
+// Skills share one folder once installed: the same name in two plugins would relink on every run.
+test('no two plugins ship a skill of the same name', () => {
+  const names = readdirSync(path.join(KIT, 'plugins')).flatMap((plugin) => {
+    const dir = path.join(KIT, 'plugins', plugin, 'skills');
+    return existsSync(dir) ? readdirSync(dir) : [];
+  });
+  assert.deepEqual(names.filter((n, i) => names.indexOf(n) !== i), []);
+});
 
 test('install links CLAUDE.md, rules, agents, hooks and every skill, and registers every hook once', () => {
   const h = home();
   install(h);
-  for (const item of ['CLAUDE.md', 'rules', 'agents', 'hooks']) {
-    assert.equal(readlinkSync(path.join(h, '.claude', item)), path.join(KIT, item), item);
+  assert.equal(linkOf(h, 'CLAUDE.md'), path.join(KIT, 'CLAUDE.md'));
+  for (const item of ['rules', 'agents', 'hooks']) assert.equal(linkOf(h, item), path.join(KIT, CORE, item), item);
+  for (const [s, dir] of Object.entries(skills())) assert.equal(linkOf(h, `skills/${s}`), dir, s);
+  for (const plugin of readdirSync(path.join(KIT, 'plugins'))) {
+    assert.ok(Object.values(skills()).some((dir) => dir.startsWith(path.join(KIT, 'plugins', plugin, 'skills'))), `${plugin} links no skill`);
   }
-  for (const s of skills()) assert.equal(readlinkSync(path.join(h, '.claude/skills', s)), path.join(KIT, 'skills', s), s);
   const all = Object.keys(settingsOf(h).hooks).flatMap((e) => commands(settingsOf(h), e));
   for (const c of kitCommands()) assert.equal(all.filter((x) => x === c).length, 1, c);
   assert.deepEqual(commands(settingsOf(h), 'SessionStart').filter((c) => c.includes('scripts/update.sh')), [`"${KIT}/scripts/update.sh"`]);
@@ -103,11 +122,23 @@ test('install keeps the user settings and own hooks, backs up what it replaces, 
 test('install unlinks a skill removed upstream and leaves links it does not own', () => {
   const h = home();
   mkdirSync(path.join(h, '.claude/skills'), { recursive: true });
-  symlinkSync(path.join(KIT, 'skills/gone-upstream'), path.join(h, '.claude/skills/gone-upstream'));
+  symlinkSync(path.join(KIT, 'plugins/web/skills/gone-upstream'), path.join(h, '.claude/skills/gone-upstream'));
   symlinkSync(path.join(h, 'elsewhere'), path.join(h, '.claude/skills/someone-elses'));
   install(h);
   assert.throws(() => lstatSync(path.join(h, '.claude/skills/gone-upstream')));
   assert.ok(lstatSync(path.join(h, '.claude/skills/someone-elses')).isSymbolicLink());
+});
+
+// Only a link into the kit is the kit's to replace: a link of the user's own in the way is kept in backups.
+test('install backs up a link of yours that stands where rules go, instead of deleting it', () => {
+  const h = home({ 'my-rules/mine.md': 'my rule\n' });
+  mkdirSync(path.join(h, '.claude'), { recursive: true });
+  symlinkSync(path.join(h, 'my-rules'), path.join(h, '.claude/rules'));
+  install(h);
+  assert.equal(linkOf(h, 'rules'), path.join(KIT, CORE, 'rules'));
+  const [backup] = readdirSync(path.join(h, '.claude/backups'));
+  assert.equal(readlinkSync(path.join(h, '.claude/backups', backup, 'rules')), path.join(h, 'my-rules'));
+  assert.equal(readFileSync(path.join(h, 'my-rules/mine.md'), 'utf8'), 'my rule\n');
 });
 
 test('uninstall removes only the kit links and hooks', () => {
@@ -115,7 +146,7 @@ test('uninstall removes only the kit links and hooks', () => {
   const h = home({ '.claude/settings.json': JSON.stringify({ theme: 'dark', hooks: { PreToolUse: [own] } }) });
   install(h);
   install(h, ['--uninstall']);
-  for (const item of ['CLAUDE.md', 'rules', 'agents', 'hooks', `skills/${skills()[0]}`]) {
+  for (const item of ['CLAUDE.md', 'rules', 'agents', 'hooks', `skills/${Object.keys(skills())[0]}`]) {
     assert.throws(() => lstatSync(path.join(h, '.claude', item)), item);
   }
   assert.deepEqual(settingsOf(h), { theme: 'dark', hooks: { PreToolUse: [own] } });
@@ -169,7 +200,31 @@ test('install without the claude CLI still succeeds and names the servers it ski
   const r = install(h);
   for (const name of Object.keys(kitMcp())) assert.match(r.stdout, new RegExp(`skipped MCP server ${name}`));
   assert.ok(!existsSync(path.join(h, '.claude.json')));
-  assert.equal(readlinkSync(path.join(h, '.claude/rules')), path.join(KIT, 'rules'));
+  assert.equal(linkOf(h, 'rules'), path.join(KIT, CORE, 'rules'));
+});
+
+// What install.sh left before the plugin folders: rules, agents and hooks linked to the kit's root, each skill to
+// skills/<name>. After the pull those sources are gone, and the kit's own stale links are not the user's to keep.
+test('an install from before the plugin folders is relinked: settings.json as it was, nothing dangling, nothing backed up', () => {
+  const h = home();
+  install(h);
+  const before = readFileSync(path.join(h, '.claude/settings.json'), 'utf8');
+  const relink = (rel, target) => {
+    rmSync(path.join(h, '.claude', rel));
+    symlinkSync(target, path.join(h, '.claude', rel));
+  };
+  for (const item of ['rules', 'agents', 'hooks']) relink(item, path.join(KIT, item));
+  for (const s of Object.keys(skills())) relink(`skills/${s}`, path.join(KIT, 'skills', s));
+
+  install(h);
+  for (const item of ['rules', 'agents', 'hooks']) assert.equal(linkOf(h, item), path.join(KIT, CORE, item), item);
+  for (const [s, dir] of Object.entries(skills())) assert.equal(linkOf(h, `skills/${s}`), dir, s);
+  for (const rel of ['CLAUDE.md', 'rules', 'agents', 'hooks', ...Object.keys(skills()).map((s) => `skills/${s}`)]) {
+    assert.ok(existsSync(path.join(h, '.claude', rel)), `${rel} dangles`);
+  }
+  assert.ok(existsSync(path.join(h, '.claude/hooks/protect-secrets.sh')), 'the registered hook path stopped answering');
+  assert.equal(readFileSync(path.join(h, '.claude/settings.json'), 'utf8'), before);
+  assert.ok(!existsSync(path.join(h, '.claude/backups')), 'the kit backed up its own old links');
 });
 
 // A published repo, a friend's clone of it installed in a fresh home, and the maintainer's clone to push from.
@@ -189,8 +244,8 @@ function published() {
   install(h, [], friend);
   const push = (skill) => {
     const m = path.join(root, 'maintainer');
-    mkdirSync(path.join(m, 'skills', skill));
-    writeFileSync(path.join(m, 'skills', skill, 'SKILL.md'), `---\nname: ${skill}\n---\n`);
+    mkdirSync(path.join(m, CORE, 'skills', skill));
+    writeFileSync(path.join(m, CORE, 'skills', skill, 'SKILL.md'), `---\nname: ${skill}\n---\n`);
     git(m, 'add', '-A');
     git(m, 'commit', '-qm', `add ${skill}`);
     git(m, 'push', '-q');
@@ -217,7 +272,21 @@ test('update pulls in the background and links a skill added upstream', async ()
   assert.equal(r.status, 0, r.stderr);
   const link = path.join(h, '.claude/skills/new-upstream-skill');
   assert.ok(await eventually(() => existsSync(link)), 'the new skill was never linked');
-  assert.equal(readlinkSync(link), path.join(friend, 'skills/new-upstream-skill'));
+  assert.equal(readlinkSync(link), path.join(friend, CORE, 'skills/new-upstream-skill'));
+});
+
+// A pull by hand, or an install that failed, leaves every link pointing at folders that moved: no rules, no guards.
+test('update relinks at once when the installed links dangle, without waiting for its interval', async () => {
+  const { friend, h, push } = published();
+  push('first');
+  update(friend, h);
+  assert.ok(await eventually(() => existsSync(path.join(h, '.claude/skills/first'))));
+
+  rmSync(path.join(h, '.claude/hooks'));
+  symlinkSync(path.join(friend, 'hooks'), path.join(h, '.claude/hooks'));
+  update(friend, h);
+  assert.ok(await eventually(() => existsSync(path.join(h, '.claude/hooks/hooks.json')), 5000), 'the dangling hooks link was left alone');
+  assert.equal(linkOf(h, 'hooks'), path.join(friend, CORE, 'hooks'));
 });
 
 test('update waits for its interval and never pulls over local edits', async () => {
@@ -229,12 +298,12 @@ test('update waits for its interval and never pulls over local edits', async () 
   push('too-soon');
   update(friend, h);
   await new Promise((r) => setTimeout(r, 1500));
-  assert.ok(!existsSync(path.join(friend, 'skills/too-soon')), 'pulled again inside the interval');
+  assert.ok(!existsSync(path.join(friend, CORE, 'skills/too-soon')), 'pulled again inside the interval');
 
   rmSync(path.join(friend, '.git/claude-config-last-update'));
   writeFileSync(path.join(friend, 'CLAUDE.md'), 'a local edit\n');
   update(friend, h);
   await new Promise((r) => setTimeout(r, 1500));
-  assert.ok(!existsSync(path.join(friend, 'skills/too-soon')), 'pulled over a local edit');
+  assert.ok(!existsSync(path.join(friend, CORE, 'skills/too-soon')), 'pulled over a local edit');
   assert.equal(readFileSync(path.join(friend, 'CLAUDE.md'), 'utf8'), 'a local edit\n');
 });

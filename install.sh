@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Links this repo into ~/.claude, registers its hooks in ~/.claude/settings.json and its MCP servers for the user.
+# Links this repo's plugins into ~/.claude, registers its hooks in ~/.claude/settings.json and its MCP servers for
+# the user. Rules, agents and hooks stay whole in plugins/core, one link each; skills come from every plugin.
 # Safe to re-run: scripts/update.sh runs it after every pull, so skills added upstream get linked and removed ones
-# unlinked. Whatever it replaces is moved to ~/.claude/backups/, never deleted.
+# unlinked. Whatever of yours it replaces is moved to ~/.claude/backups/, never deleted.
 set -euo pipefail
 
 kit="$(cd "$(dirname "$0")" && pwd -P)"
+core="$kit/plugins/core"
 claude="${CLAUDE_HOME:-$HOME/.claude}"
 mode=install
 quiet=0
@@ -40,9 +42,9 @@ user_config="${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
 
 # Every link this kit owns, as "source<TAB>link".
 links() {
-  printf '%s\t%s\n' "$kit/CLAUDE.md" "$claude/CLAUDE.md" "$kit/rules" "$claude/rules" \
-    "$kit/agents" "$claude/agents" "$kit/hooks" "$claude/hooks"
-  for s in "$kit"/skills/*/; do
+  printf '%s\t%s\n' "$kit/CLAUDE.md" "$claude/CLAUDE.md" "$core/rules" "$claude/rules" \
+    "$core/agents" "$claude/agents" "$core/hooks" "$claude/hooks"
+  for s in "$kit"/plugins/*/skills/*/; do
     [ -f "$s/SKILL.md" ] && printf '%s\t%s\n' "${s%/}" "$claude/skills/$(basename "$s")"
   done
   return 0
@@ -59,17 +61,19 @@ move_to_backup() {                     # $1 = path under $claude
 
 link() {                               # $1 = source, $2 = link
   [ -L "$2" ] && [ "$(readlink "$2")" = "$1" ] && return 0
-  if [ -e "$2" ] || [ -L "$2" ]; then move_to_backup "$2"; fi
+  # A link of the kit's own to a source that moved holds nothing of the user's: replace it, don't back it up.
+  if points_into_kit "$2"; then rm "$2"
+  elif [ -e "$2" ] || [ -L "$2" ]; then move_to_backup "$2"; fi
   mkdir -p "$(dirname "$2")"
   ln -s "$1" "$2"
   say "  linked ~/.claude/${2#"$claude"/}"
 }
 
-# The kit's hooks: hooks/hooks.json plus the updater, keyed by event.
+# The kit's hooks: the core plugin's hooks.json plus the updater, keyed by event.
 kit_hooks() {
   jq --arg updater "$updater" '.hooks
     | .SessionStart = ((.SessionStart // []) + [{matcher: "startup", hooks: [{type: "command", command: $updater, timeout: 10}]}])' \
-    "$kit/hooks/hooks.json"
+    "$core/hooks/hooks.json"
 }
 
 write_settings() {                     # stdin = new settings; writes only on a real change

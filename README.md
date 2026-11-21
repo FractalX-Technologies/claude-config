@@ -6,13 +6,18 @@ Install it once and it keeps itself up to date.
 
 ## What's inside
 
+The content lives in plugin folders, `plugins/<name>/`: `core` (what every session gets), `local` (a person at the
+keyboard) and one per stack (`mobile`, `web`, `backend`, `infra`). A new skill goes in the plugin of whoever needs
+it. Rules, agents and hooks stay whole in `core`: each folder is one link, rules point at each other by relative
+path, and the hooks share `lib/`.
+
 | Folder | Becomes | What it is |
 |---|---|---|
 | `CLAUDE.md` | `~/.claude/CLAUDE.md` | How Claude works with you: modes, code, secrets, git, subagents |
-| `rules/` | `~/.claude/rules/` | Rules per stack (shared, KMP, Android, iOS, macOS, Next.js, NestJS, .NET, Electron, Supabase, Terraform, GitHub Actions). Each `RULE.md` loads with the files its `paths:` names |
-| `skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
-| `agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
-| `hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](hooks/README.md) |
+| `plugins/core/rules/` | `~/.claude/rules/` | Rules per stack (shared, KMP, Android, iOS, macOS, Next.js, NestJS, .NET, Electron, Supabase, Terraform, GitHub Actions). Each `RULE.md` loads with the files its `paths:` names |
+| `plugins/*/skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
+| `plugins/core/agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
+| `plugins/core/hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](plugins/core/hooks/README.md) |
 | `mcp/servers.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` / `fractalx-hq-dev` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
 
 Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `CLAUDE.md` imports and which
@@ -38,7 +43,8 @@ server of yours with the same name is left as it is. Anything it replaces (an ol
 
 Automatic. At the start of a session `scripts/update.sh` pulls `main` in the background, at most every 6 hours
 (`CLAUDE_CONFIG_UPDATE_HOURS` to change it), and re-runs `install.sh --quiet` so new skills get linked and
-removed ones unlinked. A clone with local changes, or on a branch other than `main`, is never pulled.
+removed ones unlinked. A clone with local changes, or on a branch other than `main`, is never pulled. Links that
+dangle (a pull by hand without `install.sh`) are relinked at the next session start, whatever the interval.
 
 By hand: `git -C ~/.claude-config pull && ~/.claude-config/install.sh`.
 
@@ -50,7 +56,7 @@ Git); an uncommitted change would also stop the auto-update above. By hand:
 
 ```bash
 cd ~/.claude-config
-node --test hooks/test/*.test.mjs test/*.test.mjs   # the hooks and installer suites
+node --test plugins/*/hooks/test/*.test.mjs test/*.test.mjs   # the hooks and installer suites
 git commit -am "feat(skills): …" && git push
 ```
 

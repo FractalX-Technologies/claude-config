@@ -22,7 +22,7 @@ The global rules are the baseline, and they win where this skill differs — say
   (`throw new ConflictException({ code: 'EMAIL_TAKEN', message: 'Email already registered' })`). An unexpected error
   answers with a generic message; the detail goes to the logs.
 - **Logs** never carry tokens, emails or other personal data, and never a whole object (shared security rule).
-- **Business logic** lives in the backend, never in a client: the [NestJS rules](../../rules/nestjs/RULE.md).
+- **Business logic** lives in the backend, never in a client: the NestJS rules (`~/.claude/rules/nestjs/RULE.md`).
 - **Tests** prove the change: each one fails without it (shared testing rule). That replaces "a test per method".
 
 Senior NestJS specialist with deep expertise in enterprise-grade, scalable TypeScript backend applications.
