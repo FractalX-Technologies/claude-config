@@ -22,7 +22,7 @@ organisation's own MCP servers in that organisation's repo.
   (`hooks.json`, the MCP list) only move, their content waits for 1c. Writes: sandbox homes only.
   e2e: a fresh install and an upgrade from today's layout end with the same four links plus one per skill,
   `settings.json` byte for byte what it was, no dangling link and no backup of the kit's own old links.
-- [ ] 1b Stacks: `install.sh --stacks mobile,web,backend,infra` (default: all) chooses which stacks' skills are
+- [x] 1b Stacks: `install.sh --stacks mobile,web,backend,infra` (default: all) chooses which stacks' skills are
   linked, remembered in the config folder so the auto-update keeps the choice. Rules need no choice: each loads
   only with the files its `paths:` names. Writes: sandbox homes. e2e: `--stacks backend` links the skills of core,
   local and backend only; a later run with no flag keeps it; adding a stack links it, dropping one unlinks it.
@@ -92,4 +92,19 @@ Review 1a — plugin folders, same behaviour:
 - Found on the way: a rule linked one by one into a real `rules/` folder loads only when its target stays inside
   the project (probed), so rules stay one tree in `core`, and stacks carry skills. `protect-config` refuses writes
   to `hooks.json`, `.mcp.json` and plugin manifests in a session that can't prompt.
+- Commit: `40a9d19` `refactor(plugins): move skills, rules, agents and hooks into plugin folders`. CI green on
+  macOS and Linux; this Mac updated: `settings.json` identical, no dangling link, a new session loads agents,
+  skills and rules.
+
+Review 1b — stacks:
+- Installer: `--stacks <list|all|none>` chooses whose skills are linked besides core and local; the choice lives in
+  `~/.claude/claude-config.json` (key `stacks`, other keys kept), `all` is remembered as no choice, a dropped
+  stack's skills are unlinked, a name that is no stack exits 64 before anything changes, uninstall forgets it.
+- e2e: 86/86 (78 before, none weakened). 8 new tests, each seen failing before its code or on a mutant.
+- Review: `review-tests` (18 mutants; one reviewer per slice from here, for the session's cap), code reread by me.
+  Fixed: nothing pinned run after run with no flag (the auto-update's path); the filter of remembered names had no
+  observable effect, now pinned with a name that is a path; a `stacks` that is no list counted as none, now as no
+  choice; a test title that promised a second run. Left open: `--stacks` given with `--uninstall` is ignored, not
+  validated.
+- Found on the way: a state file without the `stacks` key was read as "none" (caught rereading the diff).
 - Commit: pending.

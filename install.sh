@@ -13,39 +13,101 @@ quiet=0
 
 usage() {
   cat <<'EOF'
-Usage: install.sh [--uninstall] [--quiet]
+Usage: install.sh [--stacks <list>] [--uninstall] [--quiet]
 
-  (no flag)    link CLAUDE.md, rules, agents, hooks and every skill into ~/.claude, register the hooks and the
-               MCP servers of mcp/servers.json
-  --uninstall  remove those links, hooks and MCP servers; backups and ~/.claude/personal.md stay
-  --quiet      print nothing unless something fails
+  (no flag)        link CLAUDE.md, rules, agents, hooks and the skills into ~/.claude, register the hooks and the
+                   MCP servers of mcp/servers.json
+  --stacks <list>  whose skills to link besides core and local: stacks separated by commas (mobile,web), `all`
+                   (the default) or `none`. The choice is remembered for the runs that follow
+  --uninstall      remove those links, hooks and MCP servers; backups and ~/.claude/personal.md stay
+  --quiet          print nothing unless something fails
 EOF
 }
 
-for arg in "$@"; do
-  case "$arg" in
+stacks_arg=all
+stacks_given=0
+while [ $# -gt 0 ]; do
+  case "$1" in
     --uninstall) mode=uninstall ;;
     --quiet) quiet=1 ;;
+    --stacks) [ $# -ge 2 ] || { usage >&2; exit 64; }; stacks_arg="$2"; stacks_given=1; shift ;;
+    --stacks=*) stacks_arg="${1#--stacks=}"; stacks_given=1 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 64 ;;
   esac
+  shift
 done
 
 say() { [ "$quiet" = 1 ] || printf '%s\n' "$*"; }
 command -v jq >/dev/null 2>&1 || { echo "install.sh needs jq: brew install jq (macOS) or apt install jq" >&2; exit 1; }
 
 backup="$claude/backups/claude-config-$(date +%Y%m%d-%H%M%S)"
+# What this install chose (today: its stacks), so the auto-update's run with no flag keeps it.
+state="$claude/claude-config.json"
 settings="$claude/settings.json"
 updater="\"$kit/scripts/update.sh\""
 claude_cli="${CLAUDE_CLI:-claude}"
 user_config="${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
 
+# Every install gets these plugins; each other folder of plugins/ is a stack.
+base_plugins="core local"
+
+all_stacks() {
+  local p
+  for p in "$kit"/plugins/*/; do
+    p=$(basename "$p")
+    case " $base_plugins " in *" $p "*) ;; *) printf '%s\n' "$p" ;; esac
+  done
+}
+
+# Sets $stacks, one per line: the flag's list, else the remembered one, else every stack.
+choose_stacks() {
+  local known name; known=$(all_stacks)
+  if [ "$stacks_given" = 0 ] && [ -f "$state" ] && jq -e '.stacks | type == "array"' "$state" >/dev/null 2>&1; then
+    # Only stacks that exist: one removed upstream is dropped without a word, and no other path gets in.
+    stacks=$(jq -r '.stacks[]' "$state" 2>/dev/null | grep -xF -- "$known" || true)
+    return 0
+  fi
+  no_stack() {
+    printf 'install.sh: "%s" is no stack. Stacks: %s, or all, or none.\n' "$1" "$(printf '%s' "$known" | tr '\n' ' ')" >&2
+    exit 64
+  }
+  case "$stacks_arg" in
+    all) stacks=$known ;;
+    none) stacks="" ;;
+    "") no_stack "" ;;
+    *)
+      stacks=$(printf '%s\n' "$stacks_arg" | tr ',' '\n' | awk 'NF && !seen[$0]++')
+      for name in $stacks; do
+        printf '%s\n' "$known" | grep -qxF -- "$name" || no_stack "$name"
+      done
+      ;;
+  esac
+}
+
+# `all` is the default, so it is remembered as no choice: a stack added upstream later gets linked too.
+remember_stacks() {
+  [ "$stacks_given" = 1 ] || return 0
+  local old='{}' new
+  if [ -f "$state" ]; then old=$(jq -c . "$state" 2>/dev/null) || old='{}'; fi
+  if [ "$stacks_arg" = all ]; then
+    new=$(printf '%s' "$old" | jq -c 'del(.stacks)')
+  else
+    new=$(printf '%s' "$stacks" | jq -R -s -c --argjson old "$old" '$old + {stacks: (split("\n") | map(select(. != "")))}')
+  fi
+  [ "$new" != "$old" ] || return 0
+  if [ "$new" = '{}' ]; then rm -f "$state"; else printf '%s\n' "$new" > "$state"; fi
+}
+
 # Every link this kit owns, as "source<TAB>link".
 links() {
+  local p s
   printf '%s\t%s\n' "$kit/CLAUDE.md" "$claude/CLAUDE.md" "$core/rules" "$claude/rules" \
     "$core/agents" "$claude/agents" "$core/hooks" "$claude/hooks"
-  for s in "$kit"/plugins/*/skills/*/; do
-    [ -f "$s/SKILL.md" ] && printf '%s\t%s\n' "${s%/}" "$claude/skills/$(basename "$s")"
+  for p in $base_plugins $stacks; do
+    for s in "$kit/plugins/$p"/skills/*/; do
+      [ -f "$s/SKILL.md" ] && printf '%s\t%s\n' "${s%/}" "$claude/skills/$(basename "$s")"
+    done
   done
   return 0
 }
@@ -131,10 +193,14 @@ install() {
   say "Installing claude-config from $kit"
   while IFS=$'\t' read -r src dst; do link "$src" "$dst"; done < <(links)
 
-  # A skill removed upstream leaves a dangling link behind.
+  # A skill removed upstream, or of a stack left out, is a link of the kit's that no longer belongs.
+  local wanted; wanted=$(links | cut -f2)
   for l in "$claude"/skills/*; do
-    if points_into_kit "$l" && [ ! -e "$l" ]; then rm "$l"; say "  unlinked removed skill $(basename "$l")"; fi
+    if points_into_kit "$l" && ! printf '%s\n' "$wanted" | grep -qxF -- "$l"; then
+      rm "$l"; say "  unlinked skill $(basename "$l")"
+    fi
   done
+  remember_stacks
 
   if [ ! -e "$claude/personal.md" ]; then
     printf '%s\n' '<!-- Your own facts for Claude: stack, projects, machine. Imported by CLAUDE.md; never shared. -->' \
@@ -167,7 +233,9 @@ uninstall() {
         else . end' "$settings" | write_settings
   fi
   unregister_mcp
+  rm -f "$state"
   say "Done. What install.sh replaced is in ~/.claude/backups/claude-config-*."
 }
 
+[ "$mode" = uninstall ] || choose_stacks
 "$mode"

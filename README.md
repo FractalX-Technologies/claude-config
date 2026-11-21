@@ -34,6 +34,15 @@ git clone https://github.com/FractalX-Technologies/claude-config.git ~/.claude-c
 
 Then restart Claude Code, check `/hooks`, and write your stack in `~/.claude/personal.md`.
 
+Every install links the skills of `core` and `local`, and of every stack. To link only some stacks' skills:
+
+```bash
+~/.claude-config/install.sh --stacks web,backend   # mobile, web, backend, infra · all (the default) · none
+```
+
+The choice is kept in `~/.claude/claude-config.json`, so the automatic update respects it. Rules aren't part of it:
+each one loads only with the files its `paths:` names.
+
 `install.sh` links each item above into `~/.claude/`, appends the hooks to `~/.claude/settings.json` and registers
 the MCP servers with `claude mcp add-json --scope user`. Your own settings, hooks, skills and MCP servers stay: a
 server of yours with the same name is left as it is. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to

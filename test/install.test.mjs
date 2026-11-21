@@ -27,8 +27,11 @@ function home(files = {}) {
 const { CLAUDE_CONFIG_DIR: _dropped, ...baseEnv } = process.env;
 const envFor = (homeDir, extra = {}) => ({ ...baseEnv, HOME: homeDir, CLAUDE_CLI: path.join(homeDir, 'no-claude-cli'), ...extra });
 
+const run = (homeDir, args = [], kit = KIT, env = {}) =>
+  spawnSync('bash', [path.join(kit, 'install.sh'), ...args], { encoding: 'utf8', env: envFor(homeDir, env) });
+
 function install(homeDir, args = [], kit = KIT, env = {}) {
-  const r = spawnSync('bash', [path.join(kit, 'install.sh'), ...args], { encoding: 'utf8', env: envFor(homeDir, env) });
+  const r = run(homeDir, args, kit, env);
   assert.equal(r.status, 0, r.stderr);
   return r;
 }
@@ -127,6 +130,108 @@ test('install unlinks a skill removed upstream and leaves links it does not own'
   install(h);
   assert.throws(() => lstatSync(path.join(h, '.claude/skills/gone-upstream')));
   assert.ok(lstatSync(path.join(h, '.claude/skills/someone-elses')).isSymbolicLink());
+});
+
+// ── stacks ───────────────────────────────────────────────────────────────────────────────────────────
+// Every install gets core and local; each other plugin is a stack, and --stacks chooses whose skills are linked.
+const BASE = ['core', 'local'];
+const pluginOf = (dir) => path.relative(path.join(KIT, 'plugins'), dir).split(path.sep)[0];
+const stacks = () => readdirSync(path.join(KIT, 'plugins')).filter((p) => !BASE.includes(p));
+// The plugins whose skills are linked in this home.
+const linkedPlugins = (homeDir) => [...new Set(Object.entries(skills())
+  .filter(([s]) => existsSync(path.join(homeDir, '.claude/skills', s))).map(([, dir]) => pluginOf(dir)))].sort();
+const linkedSkills = (homeDir, plugin) => Object.entries(skills())
+  .filter(([s, dir]) => pluginOf(dir) === plugin && existsSync(path.join(homeDir, '.claude/skills', s))).length;
+const skillsOf = (plugin) => Object.values(skills()).filter((dir) => pluginOf(dir) === plugin).length;
+
+test('--stacks links the skills of core, local and the chosen stacks only, and rules, agents and hooks all the same', () => {
+  const h = home();
+  install(h, ['--stacks', 'backend']);
+  assert.deepEqual(linkedPlugins(h), ['backend', 'core', 'local']);
+  for (const plugin of ['backend', 'core', 'local']) assert.equal(linkedSkills(h, plugin), skillsOf(plugin), plugin);
+  for (const item of ['rules', 'agents', 'hooks']) assert.equal(linkOf(h, item), path.join(KIT, CORE, item), item);
+});
+
+// The auto-update re-runs install.sh with no flag: it must not bring back the stacks the user left out.
+test('a run with no flag keeps the stacks chosen before; adding one links it, dropping one unlinks it', () => {
+  const h = home();
+  install(h, ['--stacks=backend']);
+  install(h);
+  assert.deepEqual(linkedPlugins(h), ['backend', 'core', 'local']);
+
+  install(h, ['--stacks', 'backend,web,backend']);
+  assert.deepEqual(linkedPlugins(h), ['backend', 'core', 'local', 'web']);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(h, '.claude/claude-config.json'), 'utf8')), { stacks: ['backend', 'web'] });
+  const dropped = install(h, ['--stacks', 'web']);
+  assert.deepEqual(linkedPlugins(h), ['core', 'local', 'web']);
+  assert.match(dropped.stdout, /unlinked skill code-nestjs/);
+  // The auto-update's path: run after run with no flag, each one starting from what the last one left.
+  const state = () => readFileSync(path.join(h, '.claude/claude-config.json'), 'utf8');
+  const chosen = state();
+  for (let i = 0; i < 3; i++) {
+    install(h, ['--quiet']);
+    assert.deepEqual(linkedPlugins(h), ['core', 'local', 'web'], `run ${i + 1}`);
+    assert.equal(state(), chosen, `run ${i + 1} rewrote the choice`);
+  }
+});
+
+// Only the name of a stack is read from the state: anything else there is no path to link skills from.
+test('a remembered name that is no stack is dropped without an error, and a choice that is no list counts as none made', () => {
+  const ghost = home({ '.claude/claude-config.json': JSON.stringify({ stacks: ['backend', 'ghost', '../plugins/web'] }) });
+  install(ghost);
+  assert.deepEqual(linkedPlugins(ghost), ['backend', 'core', 'local']);
+
+  const broken = home({ '.claude/claude-config.json': JSON.stringify({ stacks: 'backend' }) });
+  install(broken);
+  assert.deepEqual(linkedPlugins(broken), [...BASE, ...stacks()].sort());
+});
+
+test('--stacks all links every stack again and forgets the choice; --stacks none leaves core and local', () => {
+  const h = home();
+  install(h, ['--stacks', 'none']);
+  assert.deepEqual(linkedPlugins(h), ['core', 'local']);
+  install(h);
+  assert.deepEqual(linkedPlugins(h), ['core', 'local']);
+  install(h, ['--stacks', 'all']);
+  assert.deepEqual(linkedPlugins(h), [...BASE, ...stacks()].sort());
+  assert.ok(!existsSync(path.join(h, '.claude/claude-config.json')), 'the choice was kept after --stacks all');
+});
+
+test('a home that never chose links every stack and gets no state file', () => {
+  const h = home();
+  install(h);
+  assert.deepEqual(linkedPlugins(h), [...BASE, ...stacks()].sort());
+  assert.ok(!existsSync(path.join(h, '.claude/claude-config.json')));
+});
+
+// The state file is the installer's, and stacks is one key of it: a file without that key chose nothing.
+test('a state file that names no stacks links every stack, and choosing stacks keeps its other keys', () => {
+  const h = home({ '.claude/claude-config.json': JSON.stringify({ other: 1 }) });
+  install(h);
+  assert.deepEqual(linkedPlugins(h), [...BASE, ...stacks()].sort());
+  install(h, ['--stacks', 'infra']);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(h, '.claude/claude-config.json'), 'utf8')), { other: 1, stacks: ['infra'] });
+  install(h, ['--stacks', 'all']);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(h, '.claude/claude-config.json'), 'utf8')), { other: 1 });
+});
+
+test('--stacks refuses a name that is no stack, before changing anything', () => {
+  const h = home();
+  for (const bad of ['backend,nope', 'core', '']) {
+    const r = run(h, ['--stacks', bad]);
+    assert.equal(r.status, 64, bad);
+    assert.match(r.stderr, /backend/, 'the error names the stacks there are');
+    assert.ok(!existsSync(path.join(h, '.claude')), `${bad}: something was installed`);
+  }
+  assert.equal(run(h, ['--stacks']).status, 64);
+});
+
+test('uninstall forgets the chosen stacks', () => {
+  const h = home();
+  install(h, ['--stacks', 'backend']);
+  install(h, ['--uninstall']);
+  install(h);
+  assert.deepEqual(linkedPlugins(h), [...BASE, ...stacks()].sort());
 });
 
 // Only a link into the kit is the kit's to replace: a link of the user's own in the way is kept in backups.
