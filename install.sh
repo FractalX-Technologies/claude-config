@@ -17,7 +17,8 @@ usage() {
 Usage: install.sh [--profile <name>] [--config-dir <dir>] [--stacks <list>] [--uninstall] [--quiet]
 
   (no flag)        link rules, agents, hooks and the skills into ~/.claude, write the CLAUDE.md that imports the
-                   plugins' instructions, register the hooks and the MCP servers of the plugins' .mcp.json
+                   plugins' instructions, register the hooks, turn the attribution of commits and pull requests
+                   off unless you set your own, and register the MCP servers of the plugins' .mcp.json
   --profile <name> who drives the sessions: `local` (the default), a person at the keyboard, or `factory`, a run
                    nobody watches: the factory plugin where the local one would be, its deny rules in
                    settings.json, no MCP server, no auto-update, no personal.md. Remembered like the stacks
@@ -247,21 +248,22 @@ kit_hooks() {
     "$core/hooks/hooks.json"
 }
 
-# The deny rules of the profile's plugins: a settings.json there is a fragment of the install's own.
-kit_deny() {
+# The settings of the profile's plugins, as one object: a settings.json there is a fragment of the install's own.
+# Core's turns the attribution of commits and pull requests off; the factory's holds its deny rules.
+kit_settings() {
   local p f
   for p in $base_plugins; do
     f="$kit/plugins/$p/settings.json"
-    if [ -f "$f" ]; then jq -c '.permissions.deny // []' "$f" || return 1; fi
-  done | jq -s -c 'add // []'
+    if [ -f "$f" ]; then jq -c . "$f" || return 1; fi
+  done | jq -s -c 'reduce .[] as $f ({}; . * $f)'
 }
 
-# Read once, before anything changes: an install that could not read its hooks or its deny rules must not look
+# Read once, before anything changes: an install that could not read its hooks or its settings must not look
 # like one that worked. A run nobody watches without deny rules is not installed at all.
 read_kit() {
   kit_hooks_json=$(kit_hooks)
-  kit_deny_json=$(kit_deny)
-  if [ "$profile" = factory ] && [ "$(printf '%s' "$kit_deny_json" | jq 'length')" = 0 ]; then
+  kit_settings_json=$(kit_settings)
+  if [ "$profile" = factory ] && [ "$(printf '%s' "$kit_settings_json" | jq '.permissions.deny // [] | length')" = 0 ]; then
     printf 'install.sh: plugins/factory/settings.json holds no deny rules.\n' >&2; exit 1
   fi
 }
@@ -346,14 +348,20 @@ install() {
   if [ "$profile" = factory ]; then
     # What was in the folder may be the last run's doing: hooks switched off, a wide allow list, the kit's commands
     # under a matcher that never fires. A factory's settings are the kit's alone; the rest goes to the backup.
-    jq -n --argjson kit "$kit_hooks_json" --argjson deny "$kit_deny_json" '{hooks: $kit, permissions: {deny: $deny}}' | write_settings
+    jq -n --argjson kit "$kit_hooks_json" --argjson own "$kit_settings_json" '$own + {hooks: $kit}' | write_settings
   else
     # Append each kit hook whose command isn't registered for that event yet; the user's own hooks stay as they are.
-    current_settings | jq --argjson kit "$kit_hooks_json" '
+    # A setting of the kit's is added where the person has none: one they chose is theirs, and so is the attribution
+    # of someone who still sets it the old way (includeCoAuthoredBy).
+    current_settings | jq --argjson kit "$kit_hooks_json" --argjson own "$kit_settings_json" '
       reduce ($kit | to_entries[]) as $e (.;
         [ (.hooks[$e.key] // [])[] | .hooks[]?.command ] as $have
         | [ $e.value[] | .hooks |= map(select(.command as $c | $have | index($c) | not)) | select(.hooks | length > 0) ] as $add
-        | if ($add | length) > 0 then .hooks[$e.key] = ((.hooks[$e.key] // []) + $add) else . end)' | write_settings
+        | if ($add | length) > 0 then .hooks[$e.key] = ((.hooks[$e.key] // []) + $add) else . end)
+      | . as $s
+      | . + ($own | del(.permissions)
+             | if ($s | has("includeCoAuthoredBy")) then del(.attribution) else . end
+             | with_entries(select(.key as $k | $s | has($k) | not)))' | write_settings
   fi
   register_mcp
   say "Done. Restart Claude Code and check /hooks."
@@ -366,14 +374,15 @@ uninstall() {
   done
   if wrote_instructions "$claude/CLAUDE.md"; then rm "$claude/CLAUDE.md"; say "  removed $shown/CLAUDE.md"; fi
   if [ -f "$settings" ]; then
-    jq --argjson kit "$kit_hooks_json" --argjson deny "$kit_deny_json" '
+    jq --argjson kit "$kit_hooks_json" --argjson own "$kit_settings_json" '
       [ $kit[][] | .hooks[].command ] as $ours
       | if .hooks then
           .hooks |= (map_values(map(.hooks |= map(select(.command as $c | $ours | index($c) | not)))
                                 | map(select(.hooks | length > 0)))
                      | with_entries(select(.value | length > 0)))
         else . end
-      | if .permissions.deny then .permissions.deny -= $deny else . end
+      | reduce ($own | del(.permissions) | to_entries[]) as $e (.; if .[$e.key] == $e.value then del(.[$e.key]) else . end)
+      | if .permissions.deny then .permissions.deny -= ($own.permissions.deny // []) else . end
       | if .permissions.deny == [] then del(.permissions.deny) else . end
       | if .permissions == {} then del(.permissions) else . end
       | if .hooks == {} then del(.hooks) else . end' "$settings" | write_settings

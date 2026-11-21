@@ -47,7 +47,8 @@ The choice is kept in `~/.claude/claude-config.json`, so the automatic update re
 each one loads only with the files its `paths:` names.
 
 `install.sh` links each item above into `~/.claude/`, writes a `~/.claude/CLAUDE.md` that only imports the
-instructions, appends the hooks to `~/.claude/settings.json` and registers the MCP servers with `claude mcp add-json --scope user`. Your own settings, hooks, skills and MCP servers stay: a
+instructions, appends the hooks to `~/.claude/settings.json`, turns the attribution of commits and pull requests off
+there (`plugins/core/settings.json`; an `attribution` or `includeCoAuthoredBy` of your own is left as it is) and registers the MCP servers with `claude mcp add-json --scope user`. Your own settings, hooks, skills and MCP servers stay: a
 server of yours with the same name is left as it is. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to
 `~/.claude/backups/claude-config-<date>/`.
 
@@ -63,8 +64,8 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
 - It gets `core`'s rules, agents, hooks and skills, the chosen stacks' skills, and `plugins/factory/instructions.md`
   where a person gets `local`'s: never ask, always with tests, a branch and a draft pull request, comment and stop
   when stuck.
-- The folder's `settings.json` is the kit's alone: core's hooks and the deny rules of
-  `plugins/factory/settings.json`. Whatever was there goes to the folder's `backups/`. The rules deny merging or
+- The folder's `settings.json` is the kit's alone: core's hooks, no attribution on commits and pull requests, and
+  the deny rules of `plugins/factory/settings.json`. Whatever was there goes to the folder's `backups/`. The rules deny merging or
   approving a pull request, pushing to `main` or `master`, tags, releases and publishing a package, starting a
   workflow, writing through `gh api`, and `terraform apply` or `destroy`.
 - A guard that would ask a person refuses instead, whatever permission mode the run has.

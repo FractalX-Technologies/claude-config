@@ -145,6 +145,37 @@ test('install unlinks a skill removed upstream and leaves links it does not own'
   assert.ok(lstatSync(path.join(h, '.claude/skills/someone-elses')).isSymbolicLink());
 });
 
+// ── settings of the kit ──────────────────────────────────────────────────────────────────────────────
+// Claude Code signs commits and pull requests as itself unless the settings say otherwise. The instructions forbid
+// it, and a rule the model has to remember is one it forgets on the first commit: the setting holds every time.
+const NO_ATTRIBUTION = { commit: '', pr: '' };
+
+test('install turns the attribution of commits and pull requests off, and uninstall takes that back', () => {
+  const h = home({ '.claude/settings.json': JSON.stringify({ theme: 'dark' }) });
+  install(h);
+  assert.deepEqual(settingsOf(h).attribution, NO_ATTRIBUTION);
+  assert.equal(settingsOf(h).theme, 'dark');
+  assert.deepEqual(Object.keys(settingsOf(h)), ['theme', 'hooks', 'attribution'], 'the keys that were there keep their place');
+  install(h, ['--uninstall']);
+  assert.deepEqual(settingsOf(h), { theme: 'dark' });
+});
+
+test('a person who chose their own attribution keeps it, through install and uninstall', () => {
+  for (const own of [{ attribution: { commit: 'Signed by me', pr: '' } }, { includeCoAuthoredBy: true }, { attribution: NO_ATTRIBUTION, includeCoAuthoredBy: false }]) {
+    const h = home({ '.claude/settings.json': JSON.stringify(own) });
+    install(h);
+    const { hooks: _hooks, ...rest } = settingsOf(h);
+    assert.deepEqual(rest, own);
+  }
+  // Theirs when they changed it after the install, too.
+  const h = home();
+  install(h);
+  const changed = { ...settingsOf(h), attribution: { commit: 'Signed by me' } };
+  writeFileSync(path.join(h, '.claude/settings.json'), JSON.stringify(changed));
+  install(h, ['--uninstall']);
+  assert.deepEqual(settingsOf(h), { attribution: { commit: 'Signed by me' } });
+});
+
 // ── stacks ───────────────────────────────────────────────────────────────────────────────────────────
 // Every install gets core and local; each other plugin is a stack, and --stacks chooses whose skills are linked.
 const BASE = ['core', 'local'];
@@ -210,6 +241,7 @@ test('a factory install holds core, factory and the chosen stacks: no local skil
   assert.deepEqual(hooks.toSorted(), factoryCommands(dir).toSorted());
   for (const command of hooks) assert.equal(spawnSync('bash', ['-c', `test -f ${command}`]).status, 0, command);
   assert.deepEqual(settings.permissions, { deny: factoryDeny() });
+  assert.deepEqual(settings.attribution, NO_ATTRIBUTION);
   assert.deepEqual(json(path.join(dir, 'claude-config.json')), { profile: 'factory', stacks: ['web'] });
 });
 
@@ -221,6 +253,7 @@ test('a factory install replaces the settings it finds: nothing planted there su
   const planted = {
     disableAllHooks: true,
     env: { PATH: '/tmp/evil' },
+    attribution: { commit: 'Reviewed-by: a maintainer', pr: 'Approved' },
     permissions: { allow: ['Bash(*)'], deny: [factoryDeny()[0]] },
     hooks: { PreToolUse: [{ matcher: 'NoSuchTool', hooks: factoryCommands(dir).map((command) => ({ type: 'command', command })) }] },
   };
@@ -229,8 +262,9 @@ test('a factory install replaces the settings it finds: nothing planted there su
   factory(h, dir);
 
   const settings = json(path.join(dir, 'settings.json'));
-  assert.deepEqual(Object.keys(settings).sort(), ['hooks', 'permissions']);
+  assert.deepEqual(Object.keys(settings).sort(), ['attribution', 'hooks', 'permissions']);
   assert.deepEqual(settings.permissions, { deny: factoryDeny() });
+  assert.deepEqual(settings.attribution, NO_ATTRIBUTION);
   const kit = json(path.join(KIT, CORE, 'hooks/hooks.json')).hooks;
   assert.deepEqual(Object.keys(settings.hooks).sort(), Object.keys(kit).sort());
   for (const [event, groups] of Object.entries(kit)) assert.deepEqual(settings.hooks[event].map((g) => g.matcher), groups.map((g) => g.matcher), event);

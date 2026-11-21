@@ -51,13 +51,20 @@ test('MCP servers live in core or local, in the form a plugin takes', () => {
 
 // A settings fragment is merged into the install's settings.json: only what install.sh knows how to merge and to
 // take back belongs in it.
-test('a plugin\'s settings fragment holds deny rules and nothing else', () => {
+test('a plugin\'s settings fragment holds deny rules, the attribution, and nothing else', () => {
   for (const plugin of plugins.filter((p) => existsSync(path.join(KIT, 'plugins', p, 'settings.json')))) {
-    const fragment = json(`plugins/${plugin}/settings.json`);
-    assert.deepEqual(Object.keys(fragment), ['permissions'], plugin);
-    assert.deepEqual(Object.keys(fragment.permissions), ['deny'], plugin);
-    assert.ok(fragment.permissions.deny.every((rule) => /^Bash\(.+\)$/.test(rule)), plugin);
+    const { permissions, attribution, ...rest } = json(`plugins/${plugin}/settings.json`);
+    assert.deepEqual(rest, {}, plugin);
+    if (permissions) {
+      assert.deepEqual(Object.keys(permissions), ['deny'], plugin);
+      assert.ok(permissions.deny.every((rule) => /^Bash\(.+\)$/.test(rule)), plugin);
+    }
   }
+});
+
+// Never attribute work to an AI (core's instructions): every profile gets core, so every install gets this.
+test('core turns the attribution of commits and pull requests off', () => {
+  assert.deepEqual(json('plugins/core/settings.json'), { attribution: { commit: '', pr: '' } });
 });
 
 // What a run nobody watches may never do, and what it must still be able to do. `*` in a rule is any text.

@@ -229,3 +229,16 @@ Closing review:
 - `protect-config` guards `~/.claude/hooks` and that link's target, not a plugin cache.
 - Hook messages and two skills name `~/.claude/hooks`, `~/.claude/rules`; `flow-secrets`, named by core's
   hooks, moved to core in slice 2.
+
+## After the plan
+
+Attribution off, by setting (found by the first unattended run in a local lab: its first commit carried
+`Co-Authored-By`, and it amended it away by itself):
+- `plugins/core/settings.json` sets `attribution` to empty for commits and pull requests. A factory folder gets it
+  with its owned settings; a person's `settings.json` gets it unless it has an `attribution` or an
+  `includeCoAuthoredBy` of its own; uninstall takes back only the kit's value.
+- e2e: 114/114 (111 before); 7 mutants of the merge on a copy, 7 killed. Live: the same lab scenario, config from
+  this checkout: one commit, no trailer, no amend, no attribution in the pull request.
+- Review: my own (the session's eight reviewers were used). Not carried over: Orca's profile folders keep a copy of
+  `settings.json`, which this does not reach.
+
