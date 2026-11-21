@@ -14,8 +14,9 @@ stamp="$kit/.git/claude-config-last-update"
 minutes=$(( ${CLAUDE_CONFIG_UPDATE_HOURS:-6} * 60 ))
 due=1
 if [ -f "$stamp" ] && [ -z "$(find "$stamp" -mmin "+$minutes" 2>/dev/null)" ]; then due=0; fi
+claude="${CLAUDE_HOME:-$HOME/.claude}"
 linked=1
-[ -e "${CLAUDE_HOME:-$HOME/.claude}/hooks/hooks.json" ] || linked=0
+if [ ! -e "$claude/hooks/hooks.json" ] || [ ! -e "$claude/CLAUDE.md" ]; then linked=0; fi
 [ "$due" = 1 ] || [ "$linked" = 0 ] || exit 0
 [ "$due" = 0 ] || touch "$stamp"
 

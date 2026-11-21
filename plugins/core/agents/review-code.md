@@ -14,7 +14,8 @@ leave the code better, and does it follow the rules?** Not: is it perfect.
 - What the change is for: the task you were given, the plan in `tasks/todo.md`, or the pull request description.
 - For each stack the change touches, under `~/.claude/rules/<stack>/`: `RULE.md`, `references/architecture.md` and
   `references/conventions.md` (.NET also `data.md`; GitHub Actions `template.md`; Terraform `code.md`).
-- `~/.claude/rules/shared/references/naming.md` and the Code section of `~/.claude/CLAUDE.md`.
+- `~/.claude/rules/shared/references/naming.md` and the Code section of the global instructions (the files
+  `~/.claude/CLAUDE.md` imports).
 
 ## How
 

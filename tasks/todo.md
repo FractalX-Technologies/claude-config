@@ -32,10 +32,11 @@ organisation's own MCP servers in that organisation's repo.
   in a session that can't prompt: the user places them (one command). Writes: nothing. e2e: `claude plugin
   validate` passes for the marketplace and each plugin; a test fails when a plugin folder has no manifest or the
   marketplace misses it; `settings.json` and the registered MCP servers come out as before.
-- [ ] 2 Instructions per driver: `CLAUDE.md` splits into `core/instructions.md` (holds for a person and a machine)
+- [x] 2 Instructions per driver: `CLAUDE.md` splits into `core/instructions.md` (holds for a person and a machine)
   and `local/instructions.md` (modes, try before commit, my machine); the installer writes a `CLAUDE.md` that
   imports the active ones and `personal.md`. Writes: sandbox homes. e2e: the written file imports files that
-  exist; a `CLAUDE.md` of the user's own is backed up; every section of today's file is in exactly one of the two.
+  exist; a `CLAUDE.md` of the user's own is backed up. Once, by script (the old file is gone after this slice):
+  every bullet of today's file is in exactly one of the two.
 - [ ] 3 English only, generic: the Spanish trigger phrases leave the skills and the instructions; the reply-language
   rule moves to `personal.md`; the organisation's own MCP servers and its Vercel team leave `mcp/` and the README.
   Writes: nothing (the servers stay registered on machines that have them). e2e: a content test fails on Spanish
@@ -128,6 +129,30 @@ Review 1c — manifests:
   `hooks.json` is appended as it is. Left open, for the next guardrail batch (slice 3): the six descriptions are
   repeated in `marketplace.json`; `local`'s description omits the pipelines procedure.
 - Found on the way: the plugin route needs more than manifests (see below).
+- Commit: `b97ff9e` `feat(plugins): add plugin manifests and a marketplace file`. CI green on macOS and Linux; this
+  Mac updated: `settings.json` identical, hooks answering, the four MCP servers registered as before.
+
+Review 2 — instructions per driver:
+- Instructions: `CLAUDE.md` is now `plugins/core/instructions.md` (Projects, Language, Writing, Code, Secrets,
+  Installs, Commits/pull requests/releases, Subagents) and `plugins/local/instructions.md` (About me, Language,
+  Decisions, My machine, Git). Bullets moved verbatim; a script found each of the 36 in exactly one file. The
+  `flow-secrets` skill moved to core: core's instructions, hooks and security rule name it.
+- Installer: `~/.claude/CLAUDE.md` is written, not linked: a marker, one import per plugin with instructions, then
+  `personal.md`, by `~` path when the kit is under the home folder. An old link of the kit's is replaced; a file of
+  the user's (or one they added lines to) is backed up; uninstall removes only its own; a path with a space is
+  refused before anything changes. `update.sh` also relinks when `CLAUDE.md` dangles.
+- e2e: 95/95 (91 before, none weakened). 6 new tests, each seen failing before its code. By hand: `main`'s tree
+  upgraded in a sandbox home with the kit under it: imports by `~`, `settings.json` identical, nothing dangling,
+  no backup. Probed live at user level: a file of this exact form (marker, three `@~/…` lines), imported from a
+  config folder's `CLAUDE.md`, loads all three.
+- Review: `review-code`. Fixed: the wait for CI and review moved to core (a run with nobody there keeps it); two
+  `## Git` headings (core's is now "Commits, pull requests and releases", so every pointer to § Git finds the
+  local one); a marked file with the user's own lines was rewritten; a path with a space would load nothing; the
+  updater did not repair a dangling `CLAUDE.md`; the write was not atomic. Not taken: moving "confirmed first" to
+  core, because that bullet also licenses `git` and `gh` without asking, which a machine must not get; slice 4
+  writes the machine's own brake. Left open: pointers from core to local sections (`dangerous-commands` and one
+  macOS rule to § My machine, the shared rules to › Decisions) read as "not loaded" in a run without `local`.
+- Found on the way: a test wrote through an installed link into the kit (lesson recorded).
 - Commit: pending.
 
 ## Plugin route — not supported yet

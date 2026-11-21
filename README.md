@@ -13,15 +13,16 @@ path, and the hooks share `lib/`.
 
 | Folder | Becomes | What it is |
 |---|---|---|
-| `CLAUDE.md` | `~/.claude/CLAUDE.md` | How Claude works with you: modes, code, secrets, git, subagents |
+| `plugins/core/instructions.md` | imported by `~/.claude/CLAUDE.md` | What holds in every session: projects, code, secrets, installs, git, subagents |
+| `plugins/local/instructions.md` | imported by `~/.claude/CLAUDE.md` | How Claude works with a person at the keyboard: modes, your machine, when to commit |
 | `plugins/core/rules/` | `~/.claude/rules/` | Rules per stack (shared, KMP, Android, iOS, macOS, Next.js, NestJS, .NET, Electron, Supabase, Terraform, GitHub Actions). Each `RULE.md` loads with the files its `paths:` names |
 | `plugins/*/skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
 | `plugins/core/agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `plugins/core/hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](plugins/core/hooks/README.md) |
 | `plugins/local/.mcp.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account), `vercel` (each person signs in, see [Vercel](#vercel)) and `fractalx-hq` / `fractalx-hq-dev` (FractalX HQ, see [FractalX HQ](#fractalx-hq)) |
 
-Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `CLAUDE.md` imports and which
-never leaves your machine.
+Your own facts (stack, projects, machine) go in `~/.claude/personal.md`, which `~/.claude/CLAUDE.md` imports last
+and which never leaves your machine.
 
 ## Install
 
@@ -43,8 +44,8 @@ Every install links the skills of `core` and `local`, and of every stack. To lin
 The choice is kept in `~/.claude/claude-config.json`, so the automatic update respects it. Rules aren't part of it:
 each one loads only with the files its `paths:` names.
 
-`install.sh` links each item above into `~/.claude/`, appends the hooks to `~/.claude/settings.json` and registers
-the MCP servers with `claude mcp add-json --scope user`. Your own settings, hooks, skills and MCP servers stay: a
+`install.sh` links each item above into `~/.claude/`, writes a `~/.claude/CLAUDE.md` that only imports the
+instructions, appends the hooks to `~/.claude/settings.json` and registers the MCP servers with `claude mcp add-json --scope user`. Your own settings, hooks, skills and MCP servers stay: a
 server of yours with the same name is left as it is. Anything it replaces (an old `CLAUDE.md`, a skill with the same name) moves to
 `~/.claude/backups/claude-config-<date>/`.
 
@@ -71,7 +72,7 @@ By hand: `git -C ~/.claude-config pull && ~/.claude-config/install.sh`.
 ## Change something
 
 Everything in `~/.claude/` that came from here is a link into `~/.claude-config`, so editing a skill or rule
-edits the repo. Claude commits and pushes such a change as soon as it makes it, from any session (`CLAUDE.md` ›
+edits the repo. `~/.claude/CLAUDE.md` is the exception: edit the `instructions.md` it imports, never the file itself. Claude commits and pushes such a change as soon as it makes it, from any session (`CLAUDE.md` ›
 Git); an uncommitted change would also stop the auto-update above. By hand:
 
 ```bash
@@ -162,11 +163,12 @@ npx @auth0/auth0-mcp-server init --client claude-code --read-only --scopes 'read
 ~/.claude-config/install.sh --uninstall
 ```
 
-Removes the links, the hooks and the MCP servers it added; your backups and `personal.md` stay.
+Removes the links, the `CLAUDE.md` it wrote, the hooks and the MCP servers it added; your backups and `personal.md`
+stay.
 
 ## Notes
 
-- Built for the Claude Code CLI. Cowork sessions skip a symlinked `CLAUDE.md` and rules folder.
+- Built for the Claude Code CLI. Cowork sessions skip a symlinked rules folder.
 - An update runs whatever lands on `main`, hooks and MCP servers included: only people you trust should be able to
   push there.
 - Some skills are adapted from public MIT-licensed skills (for example `code-nestjs` by Jeffallan, `motion-design`

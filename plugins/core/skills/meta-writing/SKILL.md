@@ -13,7 +13,7 @@ are what make it obvious.
 | It must… | Type |
 |---|---|
 | hold every time, whether Claude remembers or not | hook (code, it can block) |
-| apply to every session in every repo | `~/.claude/CLAUDE.md`: a few lines |
+| apply to every session in every repo | `plugins/core/instructions.md`, or `plugins/local/instructions.md` when it needs a person there: a few lines |
 | apply while working on certain files | rule: `plugins/core/rules/<stack>/RULE.md` + `references/*.md`, each with `paths:` |
 | be a procedure or knowledge used now and then | skill |
 | run apart, with its own context and tools, and return only a result | subagent |

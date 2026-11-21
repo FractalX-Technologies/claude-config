@@ -10,3 +10,9 @@
   showed a linked entry inside a real `rules/` folder loads only when its target stays inside the project.
 - **Rule:** probe how Claude Code loads a folder layout with `claude -p` before building on it; rules stay one
   tree behind one link.
+
+## 2026-11-21 — A test that writes into an installed path
+- **Pattern:** a new test wrote `~/.claude/CLAUDE.md` in its sandbox home; run against the installer that still
+  linked that file, the write went through the link and replaced the kit's own `CLAUDE.md`.
+- **Rule:** in the installer suite, replace a file (remove, then write), never write it in place: the path may be a
+  link into the kit under test.

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Links this repo's plugins into ~/.claude, registers its hooks in ~/.claude/settings.json and its MCP servers for
-# the user. Rules, agents and hooks stay whole in plugins/core, one link each; skills come from every plugin.
+# the user. Rules, agents and hooks stay whole in plugins/core, one link each; skills come from every plugin;
+# CLAUDE.md is written, to import the plugins' instructions.
 # Safe to re-run: scripts/update.sh runs it after every pull, so skills added upstream get linked and removed ones
 # unlinked. Whatever of yours it replaces is moved to ~/.claude/backups/, never deleted.
 set -euo pipefail
@@ -15,11 +16,12 @@ usage() {
   cat <<'EOF'
 Usage: install.sh [--stacks <list>] [--uninstall] [--quiet]
 
-  (no flag)        link CLAUDE.md, rules, agents, hooks and the skills into ~/.claude, register the hooks and the
-                   MCP servers of the plugins' .mcp.json
+  (no flag)        link rules, agents, hooks and the skills into ~/.claude, write the CLAUDE.md that imports the
+                   plugins' instructions, register the hooks and the MCP servers of the plugins' .mcp.json
   --stacks <list>  whose skills to link besides core and local: stacks separated by commas (mobile,web), `all`
                    (the default) or `none`. The choice is remembered for the runs that follow
-  --uninstall      remove those links, hooks and MCP servers; backups and ~/.claude/personal.md stay
+  --uninstall      remove those links, the CLAUDE.md it wrote, hooks and MCP servers; backups and
+                   ~/.claude/personal.md stay
   --quiet          print nothing unless something fails
 EOF
 }
@@ -102,8 +104,7 @@ remember_stacks() {
 # Every link this kit owns, as "source<TAB>link".
 links() {
   local p s
-  printf '%s\t%s\n' "$kit/CLAUDE.md" "$claude/CLAUDE.md" "$core/rules" "$claude/rules" \
-    "$core/agents" "$claude/agents" "$core/hooks" "$claude/hooks"
+  printf '%s\t%s\n' "$core/rules" "$claude/rules" "$core/agents" "$claude/agents" "$core/hooks" "$claude/hooks"
   for p in $base_plugins $stacks; do
     for s in "$kit/plugins/$p"/skills/*/; do
       [ -f "$s/SKILL.md" ] && printf '%s\t%s\n' "${s%/}" "$claude/skills/$(basename "$s")"
@@ -113,6 +114,46 @@ links() {
 }
 
 points_into_kit() { [ -L "$1" ] && case "$(readlink "$1")" in "$kit"/*) return 0 ;; esac; return 1; }
+
+# CLAUDE.md is written, not linked: one import per plugin that has instructions, then the user's own facts.
+# Paths start at ~ where they can: other config folders read this file through an import of their own.
+instructions_marker='<!-- Written by claude-config (install.sh). Edit the files it imports, not this one: the next run rewrites it. -->'
+from_home() { case "$1" in "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;; *) printf '%s' "$1" ;; esac; }
+
+instructions() {
+  local p
+  printf '%s\n' "$instructions_marker"
+  for p in $base_plugins; do
+    [ -f "$kit/plugins/$p/instructions.md" ] && printf '@%s\n' "$(from_home "$kit/plugins/$p/instructions.md")"
+  done
+  printf '@%s\n' "$(from_home "$claude/personal.md")"
+}
+
+# The installer's own file: the marker, then nothing but imports. One the user added lines to is theirs.
+wrote_instructions() {
+  [ -f "$1" ] && [ ! -L "$1" ] && [ "$(head -n 1 "$1")" = "$instructions_marker" ] \
+    && ! tail -n +2 "$1" | grep -qv -e '^@' -e '^$'
+}
+
+# An import line ends at the first space: a path with one would load nothing, and say nothing.
+check_instructions() {
+  if instructions | grep '^@' | grep -q '[[:space:]]'; then
+    printf 'install.sh: CLAUDE.md imports files by path, and a path with a space is not read:\n%s\nMove the clone to a path without spaces.\n' \
+      "$(instructions | grep '^@' | grep '[[:space:]]')" >&2
+    exit 1
+  fi
+}
+
+write_instructions() {
+  local dst="$claude/CLAUDE.md" new; new=$(instructions)
+  if wrote_instructions "$dst"; then
+    [ "$(cat "$dst")" != "$new" ] || return 0
+  elif points_into_kit "$dst"; then rm "$dst"
+  elif [ -e "$dst" ] || [ -L "$dst" ]; then move_to_backup "$dst"; fi
+  mkdir -p "$claude"
+  printf '%s\n' "$new" > "$dst.tmp" && mv "$dst.tmp" "$dst"
+  say "  wrote ~/.claude/CLAUDE.md"
+}
 
 move_to_backup() {                     # $1 = path under $claude
   local rel="${1#"$claude"/}"
@@ -198,6 +239,7 @@ current_settings() { if [ -f "$settings" ]; then cat "$settings"; else echo '{}'
 
 install() {
   say "Installing claude-config from $kit"
+  write_instructions
   while IFS=$'\t' read -r src dst; do link "$src" "$dst"; done < <(links)
 
   # A skill removed upstream, or of a stack left out, is a link of the kit's that no longer belongs.
@@ -230,6 +272,7 @@ uninstall() {
   for l in "$claude/CLAUDE.md" "$claude/rules" "$claude/agents" "$claude/hooks" "$claude"/skills/*; do
     if points_into_kit "$l"; then rm "$l"; say "  unlinked ~/.claude/${l#"$claude"/}"; fi
   done
+  if wrote_instructions "$claude/CLAUDE.md"; then rm "$claude/CLAUDE.md"; say "  removed ~/.claude/CLAUDE.md"; fi
   if [ -f "$settings" ]; then
     jq --argjson kit "$(kit_hooks)" '
       [ $kit[][] | .hooks[].command ] as $ours
@@ -244,5 +287,5 @@ uninstall() {
   say "Done. What install.sh replaced is in ~/.claude/backups/claude-config-*."
 }
 
-[ "$mode" = uninstall ] || choose_stacks
+if [ "$mode" = install ]; then choose_stacks; check_instructions; fi
 "$mode"

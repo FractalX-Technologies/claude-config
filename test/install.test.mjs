@@ -74,6 +74,10 @@ const skills = (kit = KIT) => Object.fromEntries(readdirSync(path.join(kit, 'plu
   return readdirSync(dir).filter((s) => existsSync(path.join(dir, s, 'SKILL.md'))).map((s) => [s, path.join(dir, s)]);
 }));
 const linkOf = (homeDir, rel) => readlinkSync(path.join(homeDir, '.claude', rel));
+// CLAUDE.md is written by the installer: a marker line, then one import per line.
+const importsOf = (homeDir) => readFileSync(path.join(homeDir, '.claude/CLAUDE.md'), 'utf8').split('\n')
+  .filter((l) => l.startsWith('@')).map((l) => l.slice(1));
+const instructionsOf = (kit) => ['core', 'local'].map((p) => path.join(kit, 'plugins', p, 'instructions.md'));
 
 // Skills share one folder once installed: the same name in two plugins would relink on every run.
 test('no two plugins ship a skill of the same name', () => {
@@ -84,10 +88,13 @@ test('no two plugins ship a skill of the same name', () => {
   assert.deepEqual(names.filter((n, i) => names.indexOf(n) !== i), []);
 });
 
-test('install links CLAUDE.md, rules, agents, hooks and every skill, and registers every hook once', () => {
+test('install writes CLAUDE.md, links rules, agents, hooks and every skill, and registers every hook once', () => {
   const h = home();
   install(h);
-  assert.equal(linkOf(h, 'CLAUDE.md'), path.join(KIT, 'CLAUDE.md'));
+  // The instructions of core, then of local, then the user's own facts: all three there to be read.
+  assert.deepEqual(importsOf(h), [...instructionsOf(KIT), '~/.claude/personal.md']);
+  for (const file of [...instructionsOf(KIT), path.join(h, '.claude/personal.md')]) assert.ok(existsSync(file), `${file} is imported and missing`);
+  assert.ok(lstatSync(path.join(h, '.claude/CLAUDE.md')).isFile(), 'CLAUDE.md is no longer a link');
   for (const item of ['rules', 'agents', 'hooks']) assert.equal(linkOf(h, item), path.join(KIT, CORE, item), item);
   for (const [s, dir] of Object.entries(skills())) assert.equal(linkOf(h, `skills/${s}`), dir, s);
   for (const plugin of readdirSync(path.join(KIT, 'plugins'))) {
@@ -124,7 +131,7 @@ test('install keeps the user settings and own hooks, backs up what it replaces, 
   const before = readFileSync(path.join(h, '.claude/settings.json'), 'utf8');
   const again = install(h);
   assert.equal(readFileSync(path.join(h, '.claude/settings.json'), 'utf8'), before);
-  assert.doesNotMatch(again.stdout, /linked|backed up|updated/);
+  assert.doesNotMatch(again.stdout, /linked|backed up|updated|wrote/);
 });
 
 test('install unlinks a skill removed upstream and leaves links it does not own', () => {
@@ -251,6 +258,60 @@ test('install backs up a link of yours that stands where rules go, instead of de
   assert.equal(readFileSync(path.join(h, 'my-rules/mine.md'), 'utf8'), 'my rule\n');
 });
 
+// Every config folder on the machine reads the same CLAUDE.md, some through an import of their own: a path from ~
+// is the form they all resolve.
+test('a kit under the home folder is imported by its ~ path', () => {
+  const h = home();
+  const kit = path.join(h, 'kit');
+  cpSync(KIT, kit, { recursive: true, filter: (p) => !p.includes(`${path.sep}.git`) });
+  install(h, [], kit);
+  assert.deepEqual(importsOf(h), ['~/kit/plugins/core/instructions.md', '~/kit/plugins/local/instructions.md', '~/.claude/personal.md']);
+});
+
+test('uninstall removes the CLAUDE.md it wrote and leaves one of yours', () => {
+  const h = home();
+  install(h);
+  install(h, ['--uninstall']);
+  assert.throws(() => lstatSync(path.join(h, '.claude/CLAUDE.md')));
+
+  install(h);
+  // Replaced, never written in place: a write through a link would land in the kit under test.
+  rmSync(path.join(h, '.claude/CLAUDE.md'));
+  writeFileSync(path.join(h, '.claude/CLAUDE.md'), 'mine\n');
+  install(h, ['--uninstall']);
+  assert.equal(readFileSync(path.join(h, '.claude/CLAUDE.md'), 'utf8'), 'mine\n');
+});
+
+// The marker says who wrote the file, not who owns what was added to it since.
+test('a CLAUDE.md the installer wrote and you added lines to is yours: backed up on install, left on uninstall', () => {
+  const h = home();
+  install(h);
+  const file = path.join(h, '.claude/CLAUDE.md');
+  const edited = `${readFileSync(file, 'utf8')}\n- my own line\n`;
+  rmSync(file);
+  writeFileSync(file, edited);
+  install(h);
+  const [backup] = readdirSync(path.join(h, '.claude/backups'));
+  assert.equal(readFileSync(path.join(h, '.claude/backups', backup, 'CLAUDE.md'), 'utf8'), edited);
+  assert.deepEqual(importsOf(h), [...instructionsOf(KIT), '~/.claude/personal.md']);
+
+  rmSync(file);
+  writeFileSync(file, edited);
+  install(h, ['--uninstall']);
+  assert.equal(readFileSync(file, 'utf8'), edited);
+});
+
+// An import line ends at the first space: a path with one would load nothing, and say nothing.
+test('install refuses a kit whose path has a space, before changing anything', () => {
+  const h = home();
+  const kit = path.join(h, 'my kit');
+  cpSync(KIT, kit, { recursive: true, filter: (p) => !p.includes(`${path.sep}.git`) });
+  const r = run(h, [], kit);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /space/);
+  assert.ok(!existsSync(path.join(h, '.claude')), 'something was installed');
+});
+
 test('uninstall removes only the kit links and hooks', () => {
   const own = { matcher: 'Bash', hooks: [{ type: 'command', command: 'my-own-hook.sh' }] };
   const h = home({ '.claude/settings.json': JSON.stringify({ theme: 'dark', hooks: { PreToolUse: [own] } }) });
@@ -323,10 +384,11 @@ test('an install from before the plugin folders is relinked: settings.json as it
     rmSync(path.join(h, '.claude', rel));
     symlinkSync(target, path.join(h, '.claude', rel));
   };
-  for (const item of ['rules', 'agents', 'hooks']) relink(item, path.join(KIT, item));
+  for (const item of ['CLAUDE.md', 'rules', 'agents', 'hooks']) relink(item, path.join(KIT, item));
   for (const s of Object.keys(skills())) relink(`skills/${s}`, path.join(KIT, 'skills', s));
 
   install(h);
+  assert.deepEqual(importsOf(h), [...instructionsOf(KIT), '~/.claude/personal.md']);
   for (const item of ['rules', 'agents', 'hooks']) assert.equal(linkOf(h, item), path.join(KIT, CORE, item), item);
   for (const [s, dir] of Object.entries(skills())) assert.equal(linkOf(h, `skills/${s}`), dir, s);
   for (const rel of ['CLAUDE.md', 'rules', 'agents', 'hooks', ...Object.keys(skills()).map((s) => `skills/${s}`)]) {
@@ -397,6 +459,13 @@ test('update relinks at once when the installed links dangle, without waiting fo
   update(friend, h);
   assert.ok(await eventually(() => existsSync(path.join(h, '.claude/hooks/hooks.json')), 5000), 'the dangling hooks link was left alone');
   assert.equal(linkOf(h, 'hooks'), path.join(friend, CORE, 'hooks'));
+
+  // The same for the instructions: a CLAUDE.md that still links the file from before the split.
+  rmSync(path.join(h, '.claude/CLAUDE.md'));
+  symlinkSync(path.join(friend, 'CLAUDE.md'), path.join(h, '.claude/CLAUDE.md'));
+  update(friend, h);
+  assert.ok(await eventually(() => existsSync(path.join(h, '.claude/CLAUDE.md')), 5000), 'the dangling CLAUDE.md was left alone');
+  assert.deepEqual(importsOf(h), [...instructionsOf(friend), '~/.claude/personal.md']);
 });
 
 test('update waits for its interval and never pulls over local edits', async () => {
@@ -411,9 +480,9 @@ test('update waits for its interval and never pulls over local edits', async () 
   assert.ok(!existsSync(path.join(friend, CORE, 'skills/too-soon')), 'pulled again inside the interval');
 
   rmSync(path.join(friend, '.git/claude-config-last-update'));
-  writeFileSync(path.join(friend, 'CLAUDE.md'), 'a local edit\n');
+  writeFileSync(path.join(friend, 'README.md'), 'a local edit\n');
   update(friend, h);
   await new Promise((r) => setTimeout(r, 1500));
   assert.ok(!existsSync(path.join(friend, CORE, 'skills/too-soon')), 'pulled over a local edit');
-  assert.equal(readFileSync(path.join(friend, 'CLAUDE.md'), 'utf8'), 'a local edit\n');
+  assert.equal(readFileSync(path.join(friend, 'README.md'), 'utf8'), 'a local edit\n');
 });
