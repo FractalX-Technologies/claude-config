@@ -100,6 +100,19 @@ test('a stage that changes code may edit; the review stage may not, and neither 
   assert.deepEqual(l.flag('--permission-mode'), ['default']);
 });
 
+// A review is the event that starts the respond stage: a stage that answered with a review of its own would start
+// itself again, without end.
+test('only the review stage may post a review, and it may neither commit nor push', () => {
+  for (const stage of ['issue', 'respond']) {
+    const l = lab();
+    assert.equal(l.run(RUN, [stage, '12']).status, 0);
+    assert.deepEqual(l.flag('--disallowedTools'), ['Bash(gh pr review*)'], stage);
+  }
+  const l = lab();
+  assert.equal(l.run(RUN, ['review', '12']).status, 0);
+  assert.deepEqual(l.flag('--disallowedTools'), ['Bash(git commit*)', 'Bash(git push*)']);
+});
+
 test('the pull request stages name the pull request and read no issue', () => {
   for (const stage of ['review', 'respond']) {
     const l = lab();

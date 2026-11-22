@@ -30,13 +30,14 @@ if [ "$stage" = issue ]; then
   prompt="$prompt"$'\n\n'"$quote"
 fi
 
-# A review reads and comments: no edit tool, and no mode that accepts edits. The token is the real lock.
-tools=(Bash Read Edit Write Glob Grep) mode=acceptEdits
-if [ "$stage" = review ]; then tools=(Bash Read Glob Grep) mode=default; fi
+# A review reads and comments: no edit tool, no mode that accepts edits, no commit and no push. The token is the
+# real lock. No other stage may post a review: a review starts the respond stage, which would then start itself.
+tools=(Bash Read Edit Write Glob Grep) mode=acceptEdits never=('Bash(gh pr review*)')
+if [ "$stage" = review ]; then tools=(Bash Read Glob Grep) mode=default never=('Bash(git commit*)' 'Bash(git push*)'); fi
 
 status=0
 claude -p "$prompt" --model "${FACTORY_MODEL:-sonnet}" --permission-mode "$mode" --allowedTools "${tools[@]}" \
-  --max-budget-usd "${FACTORY_BUDGET_USD:-2}" --output-format stream-json --verbose < /dev/null > "$transcript" || status=$?
+  --disallowedTools "${never[@]}" --max-budget-usd "${FACTORY_BUDGET_USD:-2}" --output-format stream-json --verbose < /dev/null > "$transcript" || status=$?
 
 # A transcript cut short holds lines that are not JSON: read what parses, so a failed run still gets its summary.
 lines() { jq -R -r "fromjson? | $1" "$transcript" 2>/dev/null || true; }

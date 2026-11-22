@@ -83,8 +83,9 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
   token for the run that can open a pull request and nothing more.
 - `plugins/factory/run.sh <stage> <number>` runs one stage in a checkout: `issue` (an issue to a draft pull request,
   or a comment that says what blocks), `review` (one comment review, with no edit tool) and `respond` (a reviewed
-  pull request to changes on its branch and one reply). The issue's text reaches the prompt as a quote. Each run has
-  a spending cap (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
+  pull request to changes on its branch and one reply). Only `review` may post a review, since a review is what
+  starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
+  (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
 
 ### Factory in GitHub Actions
 
