@@ -28,6 +28,11 @@ The project's rules win where this skill differs.
   `.diagram-design`. `load`, `switch` and `reset` change that marker and nothing else. Keeping the default is the
   marker `profile: default`. Only a marker skips the gate in §0; with no project to hold one, draw with the default
   and say so.
+- **Every diagram is saved in the docs folder**, as `<docs>/<area>/<slug>.html`. `<docs>` is the docs folder
+  `~/.claude/personal.md` names for work that belongs to no repo; where it names none, `~/docs`. `<area>` is what
+  the diagram documents (`architecture`, `processes`): a subfolder that exists before a new one. Names are
+  lowercase kebab-case, and missing folders are created. ✓ `<docs>/architecture/software-factory.html`. SVG and
+  PNG exports go beside their HTML. Another place only when the user names it.
 - **Playwright is never installed by this skill.** The PNG preview and export need Playwright for Python and its
   browser. Where they are missing, skip the step as §10 says, and ask before installing them: that is an install
   onto the machine.

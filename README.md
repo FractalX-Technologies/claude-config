@@ -255,4 +255,5 @@ stay.
   frontmatter. Everything else is under the [MIT license](LICENSE).
 - `diagram-design` (in `local`) keeps its upstream `LICENSE` and `THIRD_PARTY_LICENSES.md` beside it. Its checks
   run on `python3`; its PNG preview and export also need Playwright for Python, which nothing here installs. A
-  brand's colors and fonts are saved in `~/.diagram-design/profiles/`, never in the skill's folder.
+  brand's colors and fonts are saved in `~/.diagram-design/profiles/`, never in the skill's folder. Every diagram
+  is saved as `<docs>/<area>/<name>.html`, in the docs folder your `personal.md` names (`~/docs` when it names none).
