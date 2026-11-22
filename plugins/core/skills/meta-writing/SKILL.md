@@ -68,7 +68,8 @@ Each step has a criterion the agent can check: "the loop is red on this bug", "e
 - A skill never contradicts a rule. Where a third-party skill differs, add a **Project overrides** section near the
   top ("the project's rules win where they differ"), and fix its examples that would mislead (installs, old APIs).
 - Third-party skills: read them first; drop scripts and commands that run on load, `allowed-tools` that pre-approve
-  installs, and anything that sends data out.
+  installs, and anything that sends data out. Record where the copy came from in its frontmatter (`source`,
+  `source-path`, `source-commit`): `meta-skill-updates` compares against them.
 - Before calling a rule done, check it against the real code of the repos it covers: versions, folder names, APIs.
 
 **Done when** the type fits the table, every pointer says when, nothing in it is said elsewhere, and nothing

@@ -287,3 +287,13 @@ The factory's stages and the workflow that runs them:
   `verify_geometry.py` and `export_svg.py` run on the changed examples.
 - Open: an update from upstream is a copy by hand, with these changes made again.
 - Review: my own.
+
+Updates of adopted skills, checked when asked:
+- `meta-skill-updates` (in `local`): `check.sh` lists each adopted skill as `current`, `update`, `unknown` or
+  `error` against its source, through `gh`; the skill's steps read the diff, merge it under the config's
+  changes, record the new commit and prove it with the suite. That closes the open point above.
+- An adopted skill records `source`, `source-path` and `source-commit` in its frontmatter (`meta-writing` § 7).
+  `diagram-design` does; `code-nestjs`, `code-swiftui` and `motion-design` have a license and no source yet.
+- Suite: 139/139 (3 new, seen red; 4 mutants of `check.sh` on a copy, 4 killed). The merge steps were run on a scratch clone: from the copy's own commit
+  (nothing to merge), and from an older one (one conflict, on the line both sides changed).
+- Review: my own.

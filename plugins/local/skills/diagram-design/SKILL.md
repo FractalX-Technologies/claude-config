@@ -6,6 +6,8 @@ metadata:
   author: Cathryn Lavery
   version: "2.6.170"
   source: https://github.com/cathrynlavery/diagram-design
+  source-path: skills/diagram-design
+  source-commit: d7b0176d7e60c6f2ff54067991491ac7622c81fb
 ---
 
 # Diagram Design
