@@ -53,8 +53,8 @@ result later. It adds to *How work is done*.
 
 ## The runner
 
-- The config folder is `$CLAUDE_CONFIG_DIR`, not `~/.claude`: where a rule, an agent, a skill or a hook message names
-  `~/.claude/<path>`, read `$CLAUDE_CONFIG_DIR/<path>`.
+- Where the workflow sets `$CLAUDE_CONFIG_DIR`, that folder is the config, not `~/.claude`: read
+  `$CLAUDE_CONFIG_DIR/<path>` where a rule, an agent, a skill or a hook message names `~/.claude/<path>`.
 - The only secrets are the ones the workflow gave the run. Never print one, write one to a file or put one in a
   comment, a commit or a log.
 - Leave the machine as it was: no global installs, no change outside the checkout and the temp folder.

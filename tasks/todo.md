@@ -253,3 +253,17 @@ What the first runs on a real repository showed (a private sandbox repo: issues,
   file; `git stash list` refused in both.
 - Review: my own. Still open: the runs used the owner's token; no workflow starts them yet.
 
+The factory's stages and the workflow that runs them:
+- `plugins/factory/run.sh` (issue, review, respond) with its prompts in `plugins/factory/prompts/`, and
+  `plugins/factory/board.sh`, which moves an issue's card: the workflow's job, never the run's.
+- `.github/workflows/factory.yml`, reusable: a GitHub App token per run (a review's can't push, none can change a
+  workflow), the profile in the hosted runner's own `~/.claude`, the Claude credential kept from the model's
+  commands, a spending cap, the board moved with a second token.
+- e2e: 128/128 (14 new, seen red); 16 mutants of the two scripts on a copy, 16 killed. Live from this machine: the
+  issue stage through `run.sh` on a real ticket (test red, fix, draft pull request, CI green) and the card moved
+  through `board.sh`.
+- Not run yet: the workflow itself. It needs the app and the Claude credential, which only the owner can create.
+- Open: a self-hosted runner (the secret scrub hides `CLAUDE_CONFIG_DIR` from the hooks); a pull request stage
+  loads the project settings of the branch it checks out.
+- Review: my own.
+

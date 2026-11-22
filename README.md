@@ -54,7 +54,8 @@ server of yours with the same name is left as it is. Anything it replaces (an ol
 
 ### Factory profile
 
-For a session a workflow starts and nobody watches. It goes into a folder of its own, never `~/.claude`:
+For a session a workflow starts and nobody watches. On a machine that has a person's `~/.claude`, it goes into a
+folder of its own:
 
 ```bash
 ./install.sh --profile factory --config-dir "$RUNNER_TEMP/.claude" --stacks web,backend
@@ -80,7 +81,59 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
 - The deny rules are the second lock. A command spelled another way gets past a pattern (a script, `bash -c`, a
   default branch with another name), so the first lock is the server's: a ruleset on the default branch, and a
   token for the run that can open a pull request and nothing more.
-- The workflows that start such a run are not here: each stage arrives with the workflow that runs it.
+- `plugins/factory/run.sh <stage> <number>` runs one stage in a checkout: `issue` (an issue to a draft pull request,
+  or a comment that says what blocks), `review` (one comment review, with no edit tool) and `respond` (a reviewed
+  pull request to changes on its branch and one reply). The issue's text reaches the prompt as a quote. Each run has
+  a spending cap (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
+
+### Factory in GitHub Actions
+
+`.github/workflows/factory.yml` is a reusable workflow that runs one stage on a hosted runner. A repository calls it
+from a workflow of its own, which decides the events that start each stage:
+
+```yaml
+on:
+  issues:
+    types: [labeled]
+permissions:
+  contents: read
+jobs:
+  issue:
+    if: github.event.label.name == 'factory'
+    uses: <owner>/claude-config/.github/workflows/factory.yml@main
+    with:
+      stage: issue
+      number: ${{ github.event.issue.number }}
+      app-client-id: ${{ vars.FACTORY_APP_CLIENT_ID }}
+      kit-repository: <owner>/claude-config
+    secrets:
+      app-private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+      anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+- **Identity**: a GitHub App of your own, installed on the repository, with these permissions and no other:
+  Contents, Pull requests and Issues read and write; Checks, Commit statuses and Actions read; organisation Projects
+  read and write when a board follows the issues. The default `GITHUB_TOKEN` would not do: what it pushes starts no
+  workflow, so the pull request would get no CI. The app has no Workflows permission, so GitHub rejects a push that
+  changes a workflow file: a pull request can't rewrite the workflow that will run on it.
+- **Tokens**: each run gets a token for its repository alone, revoked when the job ends. The `review` stage's token
+  can't push. The board is moved by the workflow with a second token; the run's can't touch a project.
+- **Claude credential**: `anthropic-api-key` (an API key, in a workspace with a spend limit) or
+  `claude-code-oauth-token` (`claude setup-token`, tied to one person's subscription). The commands the model runs
+  don't see it (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`).
+- **The profile** is installed into the runner's own `~/.claude`, at `kit-ref` (`main`, or a commit to pin it).
+  `stacks`, `model`, `budget-usd` and `claude-code-version` are inputs.
+- **Board** (`board: <project number>`): the issue's Status becomes `In progress` when the run starts, then
+  `In review` when a pull request closes the issue, `Blocked` when none does. The project needs those three options.
+- **Who starts a run** is the caller's `if:`. Start a stage only from what a person with write access did (a label,
+  a review) or from the app's own pull requests, and never on `pull_request_target`. Runs on pull requests from
+  forks are refused.
+- **The server's lock**: a ruleset on the default branch that requires a pull request and one approval. The app
+  can't approve its own pull request, so a person's review is what merges.
+- `keep-transcript: true` keeps the transcript as an artifact for a week. It quotes the repository's files: leave it
+  off in a public repository.
+- Not here yet: a self-hosted runner. With the secret scrub on, the hooks can't see `CLAUDE_CONFIG_DIR`, so a
+  profile outside `~/.claude` would lose its always-refuse guard.
 
 ### Plugin manifests
 

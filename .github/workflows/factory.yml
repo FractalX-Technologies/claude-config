@@ -1,0 +1,218 @@
+# One stage of the factory on one issue or pull request, for a repository's own workflow to call
+# (README › Factory in GitHub Actions). The caller decides which events start a stage; this file decides what a
+# run may do: it acts as a GitHub App that can open a pull request and nothing more, with the factory profile.
+name: Factory
+
+on:
+  workflow_call:
+    inputs:
+      stage:
+        description: issue, review or respond
+        type: string
+        required: true
+      number:
+        description: The issue (stage issue) or the pull request (stages review and respond)
+        type: number
+        required: true
+      app-client-id:
+        description: Client ID of the GitHub App the run acts as
+        type: string
+        required: true
+      kit-repository:
+        description: This config repository, as owner/name
+        type: string
+        required: true
+      kit-ref:
+        description: The branch, tag or commit of the config to install
+        type: string
+        default: main
+      stacks:
+        description: The stacks whose skills the run gets, as install.sh --stacks takes them
+        type: string
+        default: none
+      model:
+        type: string
+        default: sonnet
+      budget-usd:
+        description: The most one run may spend
+        type: string
+        default: "2"
+      board:
+        description: Number of the owner's project whose Status follows the issue; 0 for none
+        type: number
+        default: 0
+      claude-code-version:
+        type: string
+        default: "2.1.330"
+      node-version:
+        type: string
+        default: "22"
+      keep-transcript:
+        description: Keep the run's transcript as an artifact for a week. It quotes the repository's files.
+        type: boolean
+        default: false
+    secrets:
+      app-private-key:
+        required: true
+      anthropic-api-key:
+        required: false
+      claude-code-oauth-token:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: ${{ inputs.stage }} ${{ inputs.number }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: factory-${{ github.repository }}-${{ inputs.stage }}-${{ inputs.number }}
+      cancel-in-progress: false
+    env:
+      STAGE: ${{ inputs.stage }}
+      NUMBER: ${{ inputs.number }}
+      OWNER: ${{ github.repository_owner }}
+      GH_REPO: ${{ github.repository }}
+      ISSUE_URL: ${{ github.server_url }}/${{ github.repository }}/issues/${{ inputs.number }}
+    steps:
+      - name: Check the call
+        run: |
+          case "$STAGE" in
+            issue|review|respond) ;;
+            *) echo "::error::There is no stage \"$STAGE\": issue, review or respond."; exit 64 ;;
+          esac
+
+      # The run's only identity on GitHub. A review gets a token that cannot push; no stage gets one that can
+      # change a workflow, so a pull request can never rewrite the workflow that will run on it.
+      - name: Token for the run
+        id: app
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: ${{ inputs.stage == 'review' && 'read' || 'write' }}
+          permission-pull-requests: write
+          permission-issues: write
+          permission-checks: read
+          permission-statuses: read
+          permission-actions: read
+
+      - name: Find the pull request's branch
+        id: pr
+        if: inputs.stage != 'issue'
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          pr=$(gh pr view "$NUMBER" --json headRefName,isCrossRepository,state)
+          if [ "$(jq -r '.isCrossRepository' <<< "$pr")" != false ]; then
+            echo "::error::A pull request from a fork never starts a run."; exit 1
+          fi
+          if [ "$(jq -r '.state' <<< "$pr")" != OPEN ]; then
+            echo "::error::Pull request $NUMBER is not open."; exit 1
+          fi
+          echo "head=$(jq -r '.headRefName' <<< "$pr")" >> "$GITHUB_OUTPUT"
+
+      # An issue starts from the default branch; a pull request stage from that pull request's branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app.outputs.token }}
+          ref: ${{ steps.pr.outputs.head }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # The runner is thrown away after the job, so the profile goes into its own ~/.claude: the hooks find the
+      # folder there without CLAUDE_CONFIG_DIR, which the secret scrub below removes from what they see.
+      - name: Install Claude Code and the factory profile
+        env:
+          KIT_REPOSITORY: ${{ inputs.kit-repository }}
+          KIT_REF: ${{ inputs.kit-ref }}
+          STACKS: ${{ inputs.stacks }}
+          CLAUDE_CODE_VERSION: ${{ inputs.claude-code-version }}
+        run: |
+          git init -q "$RUNNER_TEMP/kit"
+          git -C "$RUNNER_TEMP/kit" fetch -q --depth 1 "$GITHUB_SERVER_URL/$KIT_REPOSITORY" "$KIT_REF"
+          git -C "$RUNNER_TEMP/kit" checkout -q FETCH_HEAD
+          curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CODE_VERSION"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/kit/install.sh" --profile factory --config-dir "$HOME/.claude" --stacks "$STACKS"
+
+      - name: Commit as the app
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          id=$(gh api "/users/$SLUG[bot]" --jq '.id')
+          git config user.name "$SLUG[bot]"
+          git config user.email "$id+$SLUG[bot]@users.noreply.github.com"
+
+      # The board is the workflow's to move, with a token of its own: the run's token cannot touch a project.
+      - name: Token for the board
+        id: board
+        if: inputs.board > 0 && inputs.stage == 'issue'
+        continue-on-error: true
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-organization-projects: write
+          permission-issues: read
+          permission-pull-requests: read
+
+      - name: Board, in progress
+        if: steps.board.outputs.token
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.board.outputs.token }}
+          BOARD: ${{ inputs.board }}
+        run: |
+          "$RUNNER_TEMP/kit/plugins/factory/board.sh" "$OWNER" "$BOARD" "$ISSUE_URL" "In progress"
+
+      # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB keeps the Claude credential out of the commands the model runs; the
+      # GitHub token stays, since `gh` and `git push` need it, which is why that token is the narrow one above.
+      - name: Run the stage
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.anthropic-api-key }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.claude-code-oauth-token }}
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          DISABLE_AUTOUPDATER: "1"
+          FACTORY_MODEL: ${{ inputs.model }}
+          FACTORY_BUDGET_USD: ${{ inputs.budget-usd }}
+          FACTORY_OUT: ${{ runner.temp }}/factory
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then unset ANTHROPIC_API_KEY; fi
+          if [ -z "$CLAUDE_CODE_OAUTH_TOKEN" ]; then unset CLAUDE_CODE_OAUTH_TOKEN; fi
+          if [ -z "${ANTHROPIC_API_KEY:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
+            echo "::error::No Claude credential: pass the secret anthropic-api-key or claude-code-oauth-token."
+            exit 1
+          fi
+          "$RUNNER_TEMP/kit/plugins/factory/run.sh" "$STAGE" "$NUMBER"
+
+      - name: Board, where the issue landed
+        if: always() && steps.board.outputs.token
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.board.outputs.token }}
+          BOARD: ${{ inputs.board }}
+        run: |
+          linked=$(gh issue view "$NUMBER" --json closedByPullRequestsReferences --jq '.closedByPullRequestsReferences | length')
+          if [ "$linked" -gt 0 ]; then status="In review"; else status="Blocked"; fi
+          "$RUNNER_TEMP/kit/plugins/factory/board.sh" "$OWNER" "$BOARD" "$ISSUE_URL" "$status"
+
+      - name: Keep the transcript
+        if: always() && inputs.keep-transcript
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: factory-${{ inputs.stage }}-${{ inputs.number }}
+          path: ${{ runner.temp }}/factory
+          retention-days: 7
+          if-no-files-found: ignore
