@@ -16,3 +16,8 @@
   linked that file, the write went through the link and replaced the kit's own `CLAUDE.md`.
 - **Rule:** in the installer suite, replace a file (remove, then write), never write it in place: the path may be a
   link into the kit under test.
+- A test that builds a git repository and clones it at once fails on a recent git, which packs a new repository in
+  the background after its first commit → the setup's git calls pass `-c maintenance.auto=false -c gc.auto=0`.
+- A suite piped through `grep` never stops the commit that follows it: a commit went to `main` with three tests red
+  on this machine (CI was green) → run the suite as its own step and read its result before `git commit`.
+

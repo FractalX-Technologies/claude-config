@@ -617,7 +617,10 @@ test('an install from before the plugin folders is relinked: settings.json as it
 // A published repo, a friend's clone of it installed in a fresh home, and the maintainer's clone to push from.
 function published() {
   const root = tmp('claude-config-git-');
-  const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
+  // No background maintenance: a recent git packs a new repository right after its first commit, and a clone
+  // started meanwhile copies objects that are being moved ("failed to copy file", "unable to read tree").
+  const quiet = ['-c', 'maintenance.auto=false', '-c', 'gc.auto=0'];
+  const git = (cwd, ...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...quiet, ...args], { cwd, encoding: 'utf8' });
   const src = path.join(root, 'src');
   cpSync(KIT, src, { recursive: true, filter: (p) => !p.includes(`${path.sep}.git`) });
   git(src, 'init', '-q', '-b', 'main');
