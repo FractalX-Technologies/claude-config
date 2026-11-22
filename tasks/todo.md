@@ -300,3 +300,5 @@ Updates of adopted skills, checked when asked:
 - Suite: 139/139 (3 new, seen red; 4 mutants of `check.sh` on a copy, 4 killed). The merge steps were run on a scratch clone: from the copy's own commit
   (nothing to merge), and from an older one (one conflict, on the line both sides changed).
 - Review: my own.
+- Open, for a later session: record `source`, `source-path` and `source-commit` for `code-nestjs`, `code-swiftui`
+  and `motion-design`, once the owner gives their repositories, until `check.sh` lists none as `unknown`.
