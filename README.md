@@ -128,6 +128,8 @@ jobs:
   `stacks`, `model`, `budget-usd` and `claude-code-version` are inputs.
 - **Board** (`board: <project number>`): the issue's Status becomes `In progress` when the run starts, then
   `In review` when a pull request closes the issue, `Blocked` when none does. The project needs those three options.
+  What happens after a run is the caller's to report: `.github/workflows/factory-board.yml` moves a card and does
+  nothing else (`number`, `status`, `board`), for a job on `issues: closed` that sets `Done`, for one.
 - **Who starts a run** is the caller's `if:`. Start a stage only from what a person with write access did (a label,
   a review) or from the app's own pull requests, and never on `pull_request_target`. Runs on pull requests from
   forks are refused.

@@ -1,0 +1,70 @@
+# Moves an issue's card on the owner's project board, for a repository's own workflow to call when something
+# happens to the issue that no run sees: a person closing it, for one (README › Factory in GitHub Actions).
+# No model runs here and nothing of the repository is checked out.
+name: Factory board
+
+on:
+  workflow_call:
+    inputs:
+      number:
+        description: The issue whose card moves
+        type: number
+        required: true
+      status:
+        description: The Status option to give it, as the board names it
+        type: string
+        required: true
+      board:
+        description: Number of the owner's project
+        type: number
+        required: true
+      app-client-id:
+        description: Client ID of the GitHub App that moves the card
+        type: string
+        required: true
+      kit-repository:
+        description: This config repository, as owner/name
+        type: string
+        required: true
+      kit-ref:
+        description: The branch, tag or commit of the config to use
+        type: string
+        default: main
+    secrets:
+      app-private-key:
+        required: true
+
+permissions: {}
+
+jobs:
+  move:
+    name: ${{ inputs.status }} ${{ inputs.number }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Token for the board
+        id: board
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-organization-projects: write
+          permission-issues: read
+          permission-pull-requests: read
+
+      - name: Move the card
+        env:
+          GH_TOKEN: ${{ steps.board.outputs.token }}
+          KIT_REPOSITORY: ${{ inputs.kit-repository }}
+          KIT_REF: ${{ inputs.kit-ref }}
+          OWNER: ${{ github.repository_owner }}
+          BOARD: ${{ inputs.board }}
+          STATUS: ${{ inputs.status }}
+          ISSUE_URL: ${{ github.server_url }}/${{ github.repository }}/issues/${{ inputs.number }}
+        run: |
+          git init -q "$RUNNER_TEMP/kit"
+          git -C "$RUNNER_TEMP/kit" fetch -q --depth 1 "$GITHUB_SERVER_URL/$KIT_REPOSITORY" "$KIT_REF"
+          git -C "$RUNNER_TEMP/kit" checkout -q FETCH_HEAD
+          "$RUNNER_TEMP/kit/plugins/factory/board.sh" "$OWNER" "$BOARD" "$ISSUE_URL" "$STATUS"

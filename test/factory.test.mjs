@@ -14,6 +14,7 @@ const RUN = path.join(KIT, 'plugins/factory/run.sh');
 const BOARD = path.join(KIT, 'plugins/factory/board.sh');
 const WAIT = path.join(KIT, 'plugins/factory/bin/factory-wait-ci');
 const WORKFLOW = path.join(KIT, '.github/workflows/factory.yml');
+const BOARD_WORKFLOW = path.join(KIT, '.github/workflows/factory-board.yml');
 
 const RESULT = { type: 'result', subtype: 'success', is_error: false, result: 'Opened draft pull request #13.', num_turns: 4, total_cost_usd: 0.1234, duration_ms: 21000 };
 const ISSUE = { number: 12, title: 'slugify drops accents', author: { login: 'someone' }, body: 'First line.\n\nExpected: `creme-brulee`.' };
@@ -274,7 +275,7 @@ test('a status the board does not have is an error, not a guess', () => {
 });
 
 // ── the reusable workflow ───────────────────────────────────────────────────────────────────────────────────────
-const workflow = () => readFileSync(WORKFLOW, 'utf8');
+const workflow = (file = WORKFLOW) => readFileSync(file, 'utf8');
 
 // Text of the `run:` scripts alone: the lines of each block, which sit deeper than its `run:` key.
 function scripts(yaml) {
@@ -292,22 +293,26 @@ function scripts(yaml) {
 }
 
 test('the workflow\'s scripts take every value from the environment, never from an expression', () => {
-  assert.ok(scripts(workflow()).length > 200, 'the scripts were not found');
-  assert.doesNotMatch(scripts(workflow()), /\$\{\{/, 'an expression inside a script runs whatever text it expands to');
+  for (const file of [WORKFLOW, BOARD_WORKFLOW]) {
+    assert.ok(scripts(workflow(file)).length > 200, `${file}: the scripts were not found`);
+    assert.doesNotMatch(scripts(workflow(file)), /\$\{\{/, `${file}: an expression inside a script runs whatever text it expands to`);
+  }
   assert.match(scripts('    run: echo ${{ a }}\n'), /\$\{\{/);
   assert.match(scripts('  - run: |\n      echo ${{ a }}\n    env:\n      A: ${{ a }}\n'), /echo \$\{\{ a \}\}/);
   assert.doesNotMatch(scripts('  - run: |\n      echo "$A"\n    env:\n      A: ${{ a }}\n'), /\$\{\{/);
 });
 
 test('every action is pinned to a commit, and the workflow is only ever called', () => {
-  const uses = [...workflow().matchAll(/^\s*(?:- )?uses:\s*(\S+)(.*)$/gm)];
-  assert.equal(uses.length, 5);
-  for (const [, action, rest] of uses) {
-    assert.match(action, /@[0-9a-f]{40}$/, action);
-    assert.match(rest, /# v\d+/, `${action} names no version`);
+  for (const [file, count] of [[WORKFLOW, 5], [BOARD_WORKFLOW, 1]]) {
+    const uses = [...workflow(file).matchAll(/^\s*(?:- )?uses:\s*(\S+)(.*)$/gm)];
+    assert.equal(uses.length, count, file);
+    for (const [, action, rest] of uses) {
+      assert.match(action, /@[0-9a-f]{40}$/, action);
+      assert.match(rest, /# v\d+/, `${action} names no version`);
+    }
+    assert.match(workflow(file), /^on:\n  workflow_call:/m, file);
+    assert.doesNotMatch(workflow(file), /pull_request_target/, file);
   }
-  assert.match(workflow(), /^on:\n  workflow_call:/m);
-  assert.doesNotMatch(workflow(), /pull_request_target/);
 });
 
 test('the run\'s token can open a pull request and nothing more: a review cannot push, and nothing writes a workflow', () => {
@@ -326,4 +331,14 @@ test('the run\'s token can open a pull request and nothing more: a review cannot
   for (const name of ['.bashrc', '.gitconfig', '.mcp.json', '.vscode']) assert.match(yaml, new RegExp(`'\\${name}'[^\n]*|'\\${name}'`), name);
   assert.match(yaml, /\.git\/info\/exclude/);
   assert.match(yaml, /install\.sh" --profile factory/);
+});
+
+// A person closing an issue is something no run sees: the caller's workflow moves the card then, with this.
+test('the board workflow moves a card and can do nothing else', () => {
+  const yaml = workflow(BOARD_WORKFLOW);
+  assert.match(yaml, /^permissions: \{\}$/m, 'the job\'s own token has no rights at all');
+  assert.match(yaml, /permission-organization-projects: write/);
+  assert.doesNotMatch(yaml, /permission-(contents|workflows|administration|actions)|permission-(issues|pull-requests): write/);
+  assert.doesNotMatch(yaml, /ANTHROPIC|CLAUDE|actions\/checkout/, 'no model and no checkout: nothing of the repository runs here');
+  assert.match(scripts(yaml), /plugins\/factory\/board\.sh" "\$OWNER" "\$BOARD" "\$ISSUE_URL" "\$STATUS"/);
 });

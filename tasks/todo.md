@@ -271,4 +271,6 @@ The factory's stages and the workflow that runs them:
 - Open: a self-hosted runner (the secret scrub hides `CLAUDE_CONFIG_DIR` from the hooks); a pull request stage
   loads the project settings of the branch it checks out.
 - Review: my own.
+- `.github/workflows/factory-board.yml`: a reusable workflow that only moves a card, for what happens to an issue
+  after its run (a person merging closes it: `Done`). Found by the owner's first ticket, whose card stayed in review.
 
