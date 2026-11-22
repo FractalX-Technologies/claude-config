@@ -242,3 +242,14 @@ Attribution off, by setting (found by the first unattended run in a local lab: i
 - Review: my own (the session's eight reviewers were used). Not carried over: Orca's profile folders keep a copy of
   `settings.json`, which this does not reach.
 
+What the first runs on a real repository showed (a private sandbox repo: issues, a board, a ruleset on `main`):
+- Factory instructions: test first and seen red, named in the pull request; every run that pushed waits once for CI
+  and never for a review; a review is one comment-type review (`gh pr review --comment`), since comments attached
+  to lines need the `gh api` writes the rules deny; an answer to a review is one reply covering every point.
+- Deny rules: `git stash` in its three spellings (48 rules, 45 before). Core: "Copilot's review" became "the repo's
+  review bot, where it has one".
+- e2e: 114/114, the deny test seen red on `git stash`. Live, config from this checkout: a bug ticket went test red →
+  fix → draft pull request → `gh pr checks --watch` green; a review run posted one comment review and changed no
+  file; `git stash list` refused in both.
+- Review: my own. Still open: the runs used the owner's token; no workflow starts them yet.
+

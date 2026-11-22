@@ -65,9 +65,12 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
   where a person gets `local`'s: never ask, always with tests, a branch and a draft pull request, comment and stop
   when stuck.
 - The folder's `settings.json` is the kit's alone: core's hooks, no attribution on commits and pull requests, and
-  the deny rules of `plugins/factory/settings.json`. Whatever was there goes to the folder's `backups/`. The rules deny merging or
-  approving a pull request, pushing to `main` or `master`, tags, releases and publishing a package, starting a
-  workflow, writing through `gh api`, and `terraform apply` or `destroy`.
+  the deny rules of `plugins/factory/settings.json`. Whatever was there goes to the folder's `backups/`. The rules
+  deny merging or approving a pull request, pushing to `main` or `master`, tags, releases and publishing a package,
+  starting a workflow, writing through `gh api`, `git stash`, and `terraform apply` or `destroy`.
+- A run waits for CI on what it pushed and never for a review. A review is one comment-type review with every
+  finding in its body (`gh pr review --comment`): comments attached to lines would need the `gh api` writes the
+  rules deny.
 - A guard that would ask a person refuses instead, whatever permission mode the run has.
 - No local skill, no MCP server, no auto-update (the workflow picks the commit) and no `personal.md`.
 - The folder is named `.claude`, so the guards protect it however a command spells the way to it. Use a new one for

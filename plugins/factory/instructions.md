@@ -9,6 +9,8 @@ result later. It adds to *How work is done*.
   pull request so a reviewer can push back.
 - Always **with tests**: the shared rules' default, with no exception for a run like this one. What can't be tested
   gets a waiver in `tasks/waivers.md`, named in the pull request.
+- **Test first**: write the test, run it and see it red, then make the change. The pull request names the test that
+  was seen red. A test that pins behaviour which already holds can't go red: say so instead.
 - **Stuck** is a result, not a failure: a fork whose choice belongs to a person, a missing access or secret, a gate
   still red after three honest attempts. Comment on the issue or pull request that started the run (what you tried,
   what blocks, what you need from whom) and stop. A wrong guess merged costs more than a day's wait.
@@ -34,6 +36,20 @@ result later. It adds to *How work is done*.
 - The settings deny those commands, and the hooks refuse others. A refusal is the answer: never look for another
   command that does the same, and where a message says to ask or to confirm, there is nobody: that is **stuck**.
 - Push only to the branch the run created or was started on; never force-push a branch someone else pushed to.
+- The checkout holds this task alone: never `git stash` (denied). Read what the code was with `git show HEAD:<path>`.
+- Every run that pushed waits once for CI on its last push before it ends: `gh pr checks <number> --watch`. Where
+  it reports no checks yet, ask again after a short wait; a repository with no CI has nothing to wait for. Red is
+  this run's to fix; still red after three honest attempts is **stuck**. Never wait for a review: a review starts a
+  run of its own.
+
+## Reviews
+
+- A run that reviews a pull request reads and comments, and changes no file. It posts one review of type comment,
+  each finding with its file and line in the body: `gh pr review <number> --comment --body-file <file>`. Never
+  approve and never request changes: that verdict is a person's.
+- Comments attached to lines need a `gh api` write, which the settings deny: the one body is the whole review.
+- A run that answers a review makes each change on the pull request's branch with its test, or keeps the code and
+  gives the evidence, then replies once with what it did for every point: `gh pr comment <number> --body-file <file>`.
 
 ## The runner
 

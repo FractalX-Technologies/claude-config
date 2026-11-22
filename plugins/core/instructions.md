@@ -66,8 +66,9 @@ Holds in every session: with a person at the keyboard, or with nobody there.
 - Never create or push a tag, or start a release, unless I ask.
 - Never attribute work to an AI: no `Co-Authored-By`, no "Generated with", no tool name in commits, tags, pull
   request titles or bodies.
-- After opening a pull request, wait once for CI and Copilot's review. Handle every finding (fix it with a test seen
-  failing, or reply with the evidence) before calling it ready; later pushes don't need a new wait.
+- After opening a pull request, wait once for CI and for the repo's review bot, where it has one. Handle every
+  finding (fix it with a test seen failing, or reply with the evidence) before calling it ready; later pushes don't
+  need a new wait.
 
 ## Subagents
 

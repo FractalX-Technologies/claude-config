@@ -68,7 +68,7 @@ test('core turns the attribution of commits and pull requests off', () => {
 });
 
 // What a run nobody watches may never do, and what it must still be able to do. `*` in a rule is any text.
-test('the factory denies merging, pushing to the default branch, tags, releases and applying infrastructure', () => {
+test('the factory denies merging, pushing to the default branch, tags, releases, stashing and applying infrastructure', () => {
   const rules = json('plugins/factory/settings.json').permissions.deny
     .map((rule) => new RegExp(`^${rule.slice(5, -1).split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*')}$`));
   const denied = (command) => rules.some((rule) => rule.test(command));
@@ -82,13 +82,15 @@ test('the factory denies merging, pushing to the default branch, tags, releases 
     'gh api repos/o/r/releases -F draft=false', 'gh api repos/o/r/releases --input body.json',
     'npm publish', 'npm version patch', 'pnpm publish --no-git-checks', 'yarn publish',
     'terraform apply -auto-approve', 'terraform destroy', 'terraform -chdir=infra apply -auto-approve',
+    'git stash', 'git stash push -u', 'git stash pop', 'git -C . stash', 'git -c a.b=c stash -u',
     './install.sh --uninstall --config-dir /tmp/x/.claude']) {
     assert.ok(denied(command), `allowed: ${command}`);
   }
   for (const command of ['git push -u origin factory/issue-12', 'git push origin fix/main-menu', 'git push origin maintenance',
     'git push', 'git push --force-with-lease origin factory/issue-12', 'git -C sub status', 'git fetch origin main',
     'git merge origin/main', 'git log --tags', 'gh pr create --draft --title x', 'gh pr comment 12 --body x', 'gh pr view 12',
-    'gh pr review 12 --comment --body x', 'gh run watch 5', 'gh release list', 'gh release view v1',
+    'gh pr review 12 --comment --body x', 'gh pr review 12 --comment --body-file review.md', 'gh pr checks 12 --watch',
+    'git show HEAD:src/a.js', 'git log -S stash', 'gh run watch 5', 'gh release list', 'gh release view v1',
     'gh api repos/o/r/pulls/12/comments', 'gh api repos/o/r/pulls/12/comments --paginate', 'terraform plan', 'terraform plan -destroy',
     'terraform validate', 'npm run build', 'npm test']) {
     assert.ok(!denied(command), `denied: ${command}`);
