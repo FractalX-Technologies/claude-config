@@ -16,8 +16,13 @@
   linked that file, the write went through the link and replaced the kit's own `CLAUDE.md`.
 - **Rule:** in the installer suite, replace a file (remove, then write), never write it in place: the path may be a
   link into the kit under test.
-- A test that builds a git repository and clones it at once fails on a recent git, which packs a new repository in
-  the background after its first commit → the setup's git calls pass `-c maintenance.auto=false -c gc.auto=0`.
-- A suite piped through `grep` never stops the commit that follows it: a commit went to `main` with three tests red
-  on this machine (CI was green) → run the suite as its own step and read its result before `git commit`.
 
+## 2026-11-22 — A test that clones a repository it has just created
+- **Pattern:** a recent git packs a new repository in the background after its first commit; a clone started at
+  once copied objects that were being moved, and three tests failed on one machine while CI was green.
+- **Rule:** git calls in a test's setup pass `-c maintenance.auto=false -c gc.auto=0`.
+
+## 2026-11-22 — A commit that did not wait for its suite
+- **Pattern:** the suite ran piped through `grep` in the same command as the commit, so three red tests did not
+  stop it and the commit reached `main`.
+- **Rule:** run the suite as its own step and read its exit code before `git commit`.
