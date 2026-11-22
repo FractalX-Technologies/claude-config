@@ -89,7 +89,7 @@ test('the factory denies merging, pushing to the default branch, tags, releases,
   for (const command of ['git push -u origin factory/issue-12', 'git push origin fix/main-menu', 'git push origin maintenance',
     'git push', 'git push --force-with-lease origin factory/issue-12', 'git -C sub status', 'git fetch origin main',
     'git merge origin/main', 'git log --tags', 'gh pr create --draft --title x', 'gh pr comment 12 --body x', 'gh pr view 12',
-    'gh pr review 12 --comment --body x', 'gh pr review 12 --comment --body-file review.md', 'gh pr checks 12 --watch',
+    'gh pr review 12 --comment --body x', 'gh pr review 12 --comment --body-file review.md', 'gh pr checks 12 --watch', 'gh api repos/o/r/pulls/12/comments',
     'git show HEAD:src/a.js', 'git log -S stash', 'gh run watch 5', 'gh release list', 'gh release view v1',
     'gh api repos/o/r/pulls/12/comments', 'gh api repos/o/r/pulls/12/comments --paginate', 'terraform plan', 'terraform plan -destroy',
     'terraform validate', 'npm run build', 'npm test']) {

@@ -13,6 +13,7 @@ const KIT = process.env.KIT_DIR ?? path.resolve(path.dirname(fileURLToPath(impor
 const RUN = path.join(KIT, 'plugins/factory/run.sh');
 const BOARD = path.join(KIT, 'plugins/factory/board.sh');
 const WAIT = path.join(KIT, 'plugins/factory/bin/factory-wait-ci');
+const MAY_START = path.join(KIT, 'plugins/factory/may-start.sh');
 const WORKFLOW = path.join(KIT, '.github/workflows/factory.yml');
 const BOARD_WORKFLOW = path.join(KIT, '.github/workflows/factory-board.yml');
 
@@ -20,7 +21,7 @@ const RESULT = { type: 'result', subtype: 'success', is_error: false, result: 'O
 const ISSUE = { number: 12, title: 'slugify drops accents', author: { login: 'someone' }, body: 'First line.\n\nExpected: `creme-brulee`.' };
 
 // A folder with a `claude` that records its arguments and prints a transcript, and a `gh` that answers from files.
-function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [] } = {}) {
+function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [], permissions = {} } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'factory-'));
   mkdirSync(path.join(dir, 'bin'));
   mkdirSync(path.join(dir, 'work'));
@@ -47,6 +48,10 @@ case "$1 $2" in
     [ -f "$f" ] || f=${JSON.stringify(path.join(dir, 'checks-last.json'))}
     [ -f "$f" ] || { echo "no checks reported on the branch" >&2; exit 1; }
     cat "$f"; exit 8 ;;
+  "api repos/"*)
+    f=${JSON.stringify(path.join(dir, 'permission'))}-$(basename "$(dirname "$2")")
+    [ -f "$f" ] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+    cat "$f" ;;
   "project view") echo '{"id":"PROJECT"}' ;;
   "project item-list") cat ${JSON.stringify(path.join(dir, 'items.json'))} ;;
   "project field-list") cat ${JSON.stringify(path.join(dir, 'fields.json'))} ;;
@@ -56,6 +61,8 @@ esac
   writeFileSync(path.join(dir, 'issue.json'), JSON.stringify(issue));
   writeFileSync(path.join(dir, 'items.json'), JSON.stringify({ items }));
   writeFileSync(path.join(dir, 'fields.json'), JSON.stringify({ fields }));
+  // What the repository says a person may do; a login with no file is one GitHub does not know.
+  for (const [login, permission] of Object.entries(permissions)) writeFileSync(path.join(dir, `permission-${login}`), `${permission}\n`);
   // What `gh pr checks` answers, call after call; the last answer repeats.
   checks.forEach((answer, i) => writeFileSync(path.join(dir, i === checks.length - 1 ? 'checks-last.json' : `checks-${i}.json`), JSON.stringify(answer)));
   const run = (script_, args, env = {}) => spawnSync('bash', [script_, ...args], {
@@ -303,7 +310,7 @@ test('the workflow\'s scripts take every value from the environment, never from 
 });
 
 test('every action is pinned to a commit, and the workflow is only ever called', () => {
-  for (const [file, count] of [[WORKFLOW, 5], [BOARD_WORKFLOW, 1]]) {
+  for (const [file, count] of [[WORKFLOW, 6], [BOARD_WORKFLOW, 1]]) {
     const uses = [...workflow(file).matchAll(/^\s*(?:- )?uses:\s*(\S+)(.*)$/gm)];
     assert.equal(uses.length, count, file);
     for (const [, action, rest] of uses) {
@@ -331,6 +338,36 @@ test('the run\'s token can open a pull request and nothing more: a review cannot
   for (const name of ['.bashrc', '.gitconfig', '.mcp.json', '.vscode']) assert.match(yaml, new RegExp(`'\\${name}'[^\n]*|'\\${name}'`), name);
   assert.match(yaml, /\.git\/info\/exclude/);
   assert.match(yaml, /install\.sh" --profile factory/);
+});
+
+// GitHub's `author_association` calls a member whose membership is private a contributor, so a caller's `if:`
+// cannot tell who may start a run: the workflow asks the repository instead, before anything else happens.
+test('a run starts for the app itself or for a person who can push, and for nobody else', () => {
+  const env = { GH_REPO: 'o/r' };
+  const l = lab({ permissions: { owner: 'admin', dev: 'write', reader: 'read', stranger: 'none' } });
+  const ask = (...args) => l.run(MAY_START, args, env);
+  assert.equal(ask('factory-app[bot]', 'factory-app').stdout.trim(), 'true');
+  assert.deepEqual(l.gh(), [], 'the app is known by its name: nothing to ask');
+  for (const [login, answer] of [['owner', 'true'], ['dev', 'true'], ['reader', 'false'], ['stranger', 'false'], ['ghost', 'false'], ['other[bot]', 'false']]) {
+    const r = ask(login, 'factory-app');
+    assert.equal(r.status, 0, `${login}: ${r.stderr}`);
+    assert.equal(r.stdout.trim(), answer, login);
+  }
+  assert.ok(l.gh().includes('api repos/o/r/collaborators/dev/permission --jq .permission'), l.gh().join('\n'));
+  const calls = l.gh().length;
+  assert.equal(ask('../../orgs/o', 'factory-app').stdout.trim(), 'false');
+  assert.equal(l.gh().length, calls, 'a name that is no login never reaches a URL');
+  for (const args of [[], ['owner'], ['owner', 'factory-app', 'x']]) assert.equal(l.run(MAY_START, args, env).status, 64, JSON.stringify(args));
+});
+
+test('the workflow asks who started it before it creates the run\'s token', () => {
+  const yaml = workflow();
+  assert.match(yaml, /\n  run:\n    needs: gate\n    if: needs\.gate\.outputs\.allowed == 'true'\n/);
+  assert.match(scripts(yaml), /plugins\/factory\/may-start\.sh" "\$ACTOR" "\$SLUG"/);
+  const gate = yaml.slice(yaml.indexOf('\n  gate:'), yaml.indexOf('\n  run:'));
+  assert.match(gate, /permission-metadata: read/);
+  assert.doesNotMatch(gate, /permission-(?!metadata)|ANTHROPIC|CLAUDE|actions\/checkout/, 'the question needs no right over the repository');
+  assert.doesNotMatch(yaml, /author_association/);
 });
 
 // A person closing an issue is something no run sees: the caller's workflow moves the card then, with this.

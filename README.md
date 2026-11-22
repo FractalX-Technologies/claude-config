@@ -130,9 +130,15 @@ jobs:
   `In review` when a pull request closes the issue, `Blocked` when none does. The project needs those three options.
   What happens after a run is the caller's to report: `.github/workflows/factory-board.yml` moves a card and does
   nothing else (`number`, `status`, `board`), for a job on `issues: closed` that sets `Done`, for one.
-- **Who starts a run** is the caller's `if:`. Start a stage only from what a person with write access did (a label,
-  a review) or from the app's own pull requests, and never on `pull_request_target`. Runs on pull requests from
+- **Who starts a run**: the caller's `if:` picks the event (a label, the app's pull request, a review that is not
+  an approval), never on `pull_request_target`. The workflow then asks the repository who started it, and runs
+  only for the app itself or a person who can push; anyone else's run is skipped. `author_association` is not
+  used for this: GitHub calls a member whose membership is private a contributor. Runs on pull requests from
   forks are refused.
+- **Asking for a change** is a review on the pull request, of type comment or request changes, with or without
+  comments on lines: the respond stage checks each request, then changes the branch or answers with the evidence.
+  A plain comment starts nothing, and neither does a review on a pull request that conflicts with the default
+  branch: GitHub starts no workflow for it until the branch is updated.
 - **The server's lock**: a ruleset on the default branch that requires a pull request and one approval. The app
   can't approve its own pull request, so a person's review is what merges.
 - `keep-transcript: true` keeps the transcript as an artifact for a week. It quotes the repository's files: leave it

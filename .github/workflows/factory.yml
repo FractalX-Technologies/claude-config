@@ -63,7 +63,46 @@ permissions:
   contents: read
 
 jobs:
+  # Who may start a run: the app itself (its pull request was opened, its review was posted) or a person who can
+  # push to the repository. A caller's `if:` cannot tell: the association GitHub puts in the event calls a
+  # member whose membership is private a contributor. For anyone else the run is skipped.
+  gate:
+    name: Who started it
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      allowed: ${{ steps.who.outputs.allowed }}
+    steps:
+      - name: Token to ask with
+        id: app
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-metadata: read
+
+      - name: Ask the repository
+        id: who
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+          KIT_REPOSITORY: ${{ inputs.kit-repository }}
+          KIT_REF: ${{ inputs.kit-ref }}
+        run: |
+          git init -q "$RUNNER_TEMP/kit"
+          git -C "$RUNNER_TEMP/kit" fetch -q --depth 1 "$GITHUB_SERVER_URL/$KIT_REPOSITORY" "$KIT_REF"
+          git -C "$RUNNER_TEMP/kit" checkout -q FETCH_HEAD
+          allowed=$("$RUNNER_TEMP/kit/plugins/factory/may-start.sh" "$ACTOR" "$SLUG")
+          echo "allowed=$allowed" >> "$GITHUB_OUTPUT"
+          if [ "$allowed" != true ]; then echo "::notice::$ACTOR cannot push to $GH_REPO: no run."; fi
+
   run:
+    needs: gate
+    if: needs.gate.outputs.allowed == 'true'
     name: ${{ inputs.stage }} ${{ inputs.number }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

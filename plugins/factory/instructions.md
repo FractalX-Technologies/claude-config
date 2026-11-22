@@ -49,8 +49,10 @@ result later. It adds to *How work is done*.
   each finding with its file and line in the body: `gh pr review <number> --comment --body-file <file>`. Never
   approve and never request changes: that verdict is a person's.
 - Comments attached to lines need a `gh api` write, which the settings deny: the one body is the whole review.
-- A run that answers a review makes each change on the pull request's branch with its test, or keeps the code and
-  gives the evidence, then replies once with what it did for every point: `gh pr comment <number> --body-file <file>`.
+- A run that answers a review reads every review and the comments on lines, which `gh pr view` leaves out:
+  `gh api repos/{owner}/{repo}/pulls/<number>/comments`. A request is checked before it is obeyed: run what the
+  reviewer says happens. Then make each change on the pull request's branch with its test, or keep the code and
+  give the evidence, and reply once with what was done for every point: `gh pr comment <number> --body-file <file>`.
 
 ## The runner
 

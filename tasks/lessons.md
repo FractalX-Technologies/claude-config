@@ -26,3 +26,11 @@
 - **Pattern:** the suite ran piped through `grep` in the same command as the commit, so three red tests did not
   stop it and the commit reached `main`.
 - **Rule:** run the suite as its own step and read its exit code before `git commit`.
+
+## 2026-11-22 — A workflow condition that trusted the event's association
+- **Pattern:** the caller started the respond stage for a review whose `author_association` was `MEMBER`; for a
+  member whose membership is private the event says otherwise, so the owner's own review started nothing. Only
+  the app's reviews had been tried.
+- **Rule:** who may start a run is asked of the repository (`collaborators/<login>/permission`), in a job, and
+  every trigger is tried once as the person it is for, not only as the app.
+
