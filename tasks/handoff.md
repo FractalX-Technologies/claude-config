@@ -51,8 +51,9 @@
 1. Blocked on the owner: the source repositories of `code-nestjs`, `code-swiftui` and `motion-design`. With them,
    record `source`, `source-path` and `source-commit` in each frontmatter (`meta-skill-updates`, step 1) until
    `check.sh` lists none as `unknown`.
-2. Blocked on the owner: whether other skills with no license line are adopted too (`mobile-app-ui-design`,
-   `code-shadcn`, `code-playwright`, `code-react`, `code-postgres`, `code-terraform`); `check.sh` can't see them.
+2. Answered by the owner: the skills with no license line are their own, some of them at least, so there is no
+   source to record. Later they may improve one with material from an outside skill: that is an adoption
+   (`meta-writing` § 7), and the source is recorded then if the outside skill's files are copied in.
 3. Optional: make the install tests ignore `.DS_Store`, with a test seen red first.
 4. Optional, an install onto the machine the owner must approve: Playwright for Python, for the diagram skill's PNG
    preview and export.
