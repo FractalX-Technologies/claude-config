@@ -268,6 +268,28 @@ jobs:
           fi
           "$RUNNER_TEMP/kit/plugins/factory/run.sh" "$STAGE" "$NUMBER" ${COMMENT:+"$COMMENT"}
 
+      # Marking a draft ready takes write access to the code, which a qa run's token never has: the token for it is
+      # made once the model is done.
+      - name: Token to mark the pull request ready
+        id: ready
+        if: inputs.stage == 'qa' && steps.stage.outcome == 'success'
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Ready for a person
+        if: steps.ready.outputs.token
+        env:
+          GH_TOKEN: ${{ steps.ready.outputs.token }}
+          FACTORY_OUT: ${{ runner.temp }}/factory
+        run: |
+          if [ "$(cat "$FACTORY_OUT/qa-$NUMBER.verdict")" = pass ]; then gh pr ready "$NUMBER"; fi
+
       - name: Board, when the run ends
         if: always() && steps.board.outputs.token
         continue-on-error: true

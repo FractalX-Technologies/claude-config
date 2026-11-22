@@ -334,7 +334,7 @@ test('the workflow\'s scripts take every value from the environment, never from 
 });
 
 test('every action is pinned to a commit, and the workflow is only ever called', () => {
-  for (const [file, count] of [[WORKFLOW, 6], [BOARD_WORKFLOW, 1], [CONFLICTS_WORKFLOW, 1]]) {
+  for (const [file, count] of [[WORKFLOW, 7], [BOARD_WORKFLOW, 1], [CONFLICTS_WORKFLOW, 1]]) {
     const uses = [...workflow(file).matchAll(/^\s*(?:- )?uses:\s*(\S+)(.*)$/gm)];
     assert.equal(uses.length, count, file);
     for (const [, action, rest] of uses) {
@@ -351,7 +351,10 @@ test('the run\'s token can open a pull request and nothing more: a review cannot
   assert.match(yaml, /^permissions:\n  contents: read\n/m, 'the job\'s own token only reads');
   assert.match(yaml, /permission-contents: \$\{\{ \(inputs\.stage == 'review' \|\| inputs\.stage == 'qa'\) && 'read' \|\| 'write' \}\}/);
   assert.match(yaml, /permission-pull-requests: write/);
-  assert.doesNotMatch(yaml, /permission-(workflows|administration|actions: write|organization-projects: write[\s\S]*permission-contents)/);
+  assert.doesNotMatch(yaml, /permission-(workflows|administration|actions: write)/);
+  const board = yaml.slice(yaml.indexOf('name: Token for the board'), yaml.indexOf('\n      - name:', yaml.indexOf('name: Token for the board')));
+  assert.match(board, /permission-organization-projects: write/);
+  assert.doesNotMatch(board, /permission-contents/, 'the board\'s token never reaches the code');
   assert.match(yaml, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "?1"?/, 'the model\'s commands must not see the API key');
   // On Linux the scrub runs every command in a sandbox: without these two, or with Ubuntu's limit on user
   // namespaces in the way, no command starts at all (the first run on a hosted runner).
@@ -580,14 +583,14 @@ test('the qa stage tests the pull request against what its issue asks, and may c
   assert.deepEqual(l.flag('--disallowedTools'), ['Bash(git commit*)', 'Bash(git push*)', 'Bash(gh pr review*)', 'Bash(gh pr comment*)', 'Bash(gh pr ready*)']);
 });
 
-test('a qa run that passes says so on the pull request and marks it ready for a person', () => {
+test('a qa run that passes says so on the pull request, and leaves marking it ready to the workflow', () => {
   const l = lab({ prs: qaPr(), result: qaSays('- `npm test`: 19 pass\n\nQA: pass\n') });
   assert.equal(l.run(RUN, ['qa', '18']).status, 0);
   assert.equal(verdict(l), 'pass');
   assert.match(posted(l, 'comment.md'), /19 pass/);
   assert.match(posted(l, 'comment.md'), /<!-- factory:qa pass abc123 -->/);
-  assert.ok(l.gh().includes('pr ready 18'), l.gh().join('\n'));
-  assert.ok(!l.gh().some((call) => call.startsWith('pr review')));
+  // Marking a draft ready takes write access to the code, which a qa run's token never has.
+  assert.ok(!l.gh().some((call) => call.startsWith('pr ready') || call.startsWith('pr review')), l.gh().join('\n'));
 });
 
 test('a qa run that fails posts what failed as a review, which the respond stage answers', () => {
@@ -675,4 +678,14 @@ test('the workflow runs qa without write access to the code, and moves the cards
   assert.match(yaml, /OUTCOME: \$\{\{ steps\.stage\.outcome \}\}/);
   assert.match(yaml, /if: inputs\.board > 0 && contains\(fromJSON\('\["issue", "respond", "qa"\]'\), inputs\.stage\)/);
   assert.doesNotMatch(yaml, /In review/);
+});
+
+test('a pull request that passed QA is marked ready by the workflow, with a token made after the run', () => {
+  const yaml = workflow();
+  const mint = yaml.indexOf('name: Token to mark the pull request ready');
+  assert.ok(mint > yaml.indexOf('name: Run the stage'), 'a token that writes the code would be the model\'s to use during the run');
+  const step = yaml.slice(mint, yaml.indexOf('\n      - name:', mint));
+  assert.match(step, /if: inputs\.stage == 'qa' && steps\.stage\.outcome == 'success'/);
+  assert.match(step, /permission-contents: write\n\s+permission-pull-requests: write\n/);
+  assert.match(scripts(yaml), /if \[ "\$\(cat "\$FACTORY_OUT\/qa-\$NUMBER\.verdict"\)" = pass \]; then gh pr ready "\$NUMBER"; fi/);
 });

@@ -173,7 +173,8 @@ jobs:
   and one that does not start with the command start nothing, whatever the caller's `if:` says.
 - **QA** runs after every respond run: a caller job `qa` with `needs: respond` and `stage: qa`, the pull request's
   number. It tests the change against the issue it closes, and changes nothing. Its last line is the verdict, which
-  `run.sh` posts: a pass is a comment and marks the pull request ready for review; a failure is a review, so the
+  `run.sh` posts: a pass is a comment, and the workflow then marks the pull request ready for review with a token made
+  after the run (that takes write access to the code, which the qa run's token never has); a failure is a review, so the
   respond stage fixes it and QA runs again. After three failures in a row (`FACTORY_QA_ROUNDS`) it stops and says a
   person has to look. A person's review of a pull request in `Ready for HR` starts the same respond → QA loop.
 - **Asking for a change** is a review on the pull request, of type comment or request changes, with or without

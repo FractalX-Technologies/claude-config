@@ -52,6 +52,7 @@ fi
 tools=(Bash Read Edit Write Glob Grep) mode=acceptEdits never=('Bash(gh pr review*)')
 if [ "$stage" = review ]; then tools=(Bash Read Glob Grep) mode=default never=('Bash(git commit*)' 'Bash(git push*)'); fi
 # QA tests and changes nothing; its verdict is posted for it, so the model cannot both fail it and say it passed.
+# The workflow marks a passed pull request ready, since that takes a token that can write the code.
 if [ "$stage" = qa ]; then
   tools=(Bash Read Glob Grep) mode=default
   never=('Bash(git commit*)' 'Bash(git push*)' 'Bash(gh pr review*)' 'Bash(gh pr comment*)' 'Bash(gh pr ready*)')
@@ -150,7 +151,6 @@ if [ "$stage" = qa ]; then
   else
     gh pr comment "$number" --body-file "$comment" > /dev/null || echo "run.sh: the comment on pull request #$number could not be posted." >&2
   fi
-  if [ "$verdict" = pass ]; then gh pr ready "$number" > /dev/null || echo "run.sh: pull request #$number could not be marked ready." >&2; fi
 fi
 
 [ "$status" -eq 0 ] || exit "$status"
