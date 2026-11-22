@@ -37,7 +37,9 @@ platform sets an app's settings on its container.
     its apps scale to zero. A merge's release starts the database before it migrates; production's promotion stops
     it once production runs dev's version; a scheduled run stops it again (Azure starts a server stopped for 7 days);
     a manual run starts it for a test with no merge. The deployer may start and stop that one server, nothing more.
-    Production never stops. A new project's dev ships parked the same way.
+    Production never stops. A new project's dev ships parked the same way: the template's `dev-database` composite
+    (its `docs/backend.md`), never a copy of it. Terraform can't refresh a database on a stopped server, so the
+    platform's dev plans and applies start the project's servers first.
 
 ## More detail
 
