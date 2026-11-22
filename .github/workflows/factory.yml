@@ -143,6 +143,18 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/kit/install.sh" --profile factory --config-dir "$HOME/.claude" --stacks "$STACKS"
 
+      # On Linux the secret scrub below runs each of the model's commands in a sandbox, which needs these two
+      # programs and, on Ubuntu, a profile that lets bubblewrap create its user namespace. Without them no
+      # command starts at all.
+      - name: Install what the sandbox needs
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends bubblewrap socat
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' '' \
+            'profile bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '  include if exists <local/bwrap>' '}' \
+            | sudo tee /etc/apparmor.d/bwrap > /dev/null
+          sudo systemctl reload apparmor
+
       - name: Commit as the app
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}

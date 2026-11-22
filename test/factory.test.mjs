@@ -246,5 +246,10 @@ test('the run\'s token can open a pull request and nothing more: a review cannot
   assert.match(yaml, /permission-pull-requests: write/);
   assert.doesNotMatch(yaml, /permission-(workflows|administration|actions: write|organization-projects: write[\s\S]*permission-contents)/);
   assert.match(yaml, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "?1"?/, 'the model\'s commands must not see the API key');
+  // On Linux the scrub runs every command in a sandbox: without these two, or with Ubuntu's limit on user
+  // namespaces in the way, no command starts at all (the first run on a hosted runner).
+  assert.match(yaml, /apt-get install [^\n]*bubblewrap socat/);
+  assert.match(yaml, /\/etc\/apparmor\.d\/bwrap/);
+  assert.ok(yaml.indexOf('bubblewrap socat') < yaml.indexOf('name: Run the stage'), 'installed before the stage runs');
   assert.match(yaml, /install\.sh" --profile factory/);
 });
