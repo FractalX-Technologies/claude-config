@@ -12,8 +12,10 @@ One tenant for every app, in the platform IaC repo, with the `auth0/auth0` provi
 
 - The tenant is a root of its own (`projects/auth0`). It is production's tenant, so the root has `prd` alone: pull
   requests plan it, and only the deliberate run on `main` applies it.
-- An app is one call of the tenant's app module per environment, in a file of its own in that root (`<app>.tf`): its
-  API (RS256) and its applications. Names say the environment unless it is production.
+- A product is one call of the tenant's app module, in a file of its own in that root (`<app>.tf`): an API (RS256) per
+  environment, and **one application per app people install, the same in every environment**. Never an application
+  per environment: a dev build and a production build ship the same client id, and the audience keeps a token of
+  dev's out of production. An API's name says its environment unless it is production; an application's never does.
 - The root owns what is the tenant's: its flags, Attack Protection, the connections and which applications each one
   is enabled for.
 - An app's domain, audience and client ids are not secrets: the platform sets them on the app's container
