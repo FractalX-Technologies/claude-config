@@ -7,13 +7,17 @@ on:
   workflow_call:
     inputs:
       stage:
-        description: issue, review, respond or update
+        description: issue, review, respond, update or comment
         type: string
         required: true
       number:
-        description: The issue (stage issue) or the pull request (the other stages)
+        description: The issue (stage issue) or the pull request (the other stages); either one for stage comment
         type: number
         required: true
+      comment:
+        description: Stage comment only, the id of the comment that starts with /factory
+        type: string
+        default: ""
       app-client-id:
         description: Client ID of the GitHub App the run acts as
         type: string
@@ -112,6 +116,7 @@ jobs:
     env:
       STAGE: ${{ inputs.stage }}
       NUMBER: ${{ inputs.number }}
+      COMMENT: ${{ inputs.comment }}
       OWNER: ${{ github.repository_owner }}
       GH_REPO: ${{ github.repository }}
       ISSUE_URL: ${{ github.server_url }}/${{ github.repository }}/issues/${{ inputs.number }}
@@ -119,9 +124,12 @@ jobs:
       - name: Check the call
         run: |
           case "$STAGE" in
-            issue|review|respond|update) ;;
-            *) echo "::error::There is no stage \"$STAGE\": issue, review, respond or update."; exit 64 ;;
+            issue|review|respond|update|comment) ;;
+            *) echo "::error::There is no stage \"$STAGE\": issue, review, respond, update or comment."; exit 64 ;;
           esac
+          if [ "$STAGE" = comment ] && ! [[ "$COMMENT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Stage comment needs the id of the comment (input comment)."; exit 64
+          fi
 
       # The run's only identity on GitHub. A review gets a token that cannot push; no stage gets one that can
       # change a workflow, so a pull request can never rewrite the workflow that will run on it.
@@ -146,6 +154,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
         run: |
+          # A comment may be on an issue: then there is no branch to find, and the default branch is checked out.
+          if [ "$STAGE" = comment ] && ! gh pr view "$NUMBER" --json number > /dev/null 2>&1; then exit 0; fi
           pr=$(gh pr view "$NUMBER" --json headRefName,isCrossRepository,state)
           if [ "$(jq -r '.isCrossRepository' <<< "$pr")" != false ]; then
             echo "::error::A pull request from a fork never starts a run."; exit 1
@@ -216,7 +226,7 @@ jobs:
       # The board is the workflow's to move, with a token of its own: the run's token cannot touch a project.
       - name: Token for the board
         id: board
-        if: inputs.board > 0 && inputs.stage == 'issue'
+        if: inputs.board > 0 && (inputs.stage == 'issue' || inputs.stage == 'comment')
         continue-on-error: true
         uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
@@ -229,7 +239,7 @@ jobs:
           permission-pull-requests: read
 
       - name: Board, in progress
-        if: steps.board.outputs.token
+        if: steps.board.outputs.token && inputs.stage == 'issue'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.board.outputs.token }}
@@ -256,7 +266,7 @@ jobs:
             echo "::error::No Claude credential: pass the secret anthropic-api-key or claude-code-oauth-token."
             exit 1
           fi
-          "$RUNNER_TEMP/kit/plugins/factory/run.sh" "$STAGE" "$NUMBER"
+          "$RUNNER_TEMP/kit/plugins/factory/run.sh" "$STAGE" "$NUMBER" ${COMMENT:+"$COMMENT"}
 
       - name: Board, where the issue landed
         if: always() && steps.board.outputs.token
@@ -266,7 +276,8 @@ jobs:
           BOARD: ${{ inputs.board }}
         run: |
           linked=$(gh issue view "$NUMBER" --json closedByPullRequestsReferences --jq '.closedByPullRequestsReferences | length')
-          if [ "$linked" -gt 0 ]; then status="In review"; else status="Blocked"; fi
+          # A comment may have been a question: only an issue run that opened nothing is blocked.
+          if [ "$linked" -gt 0 ]; then status="In review"; elif [ "$STAGE" = issue ]; then status="Blocked"; else exit 0; fi
           "$RUNNER_TEMP/kit/plugins/factory/board.sh" "$OWNER" "$BOARD" "$ISSUE_URL" "$status"
 
       # For whoever reads the job: what is in the checkout that no commit holds, the hidden stand-ins included.

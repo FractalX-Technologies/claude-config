@@ -83,8 +83,8 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
   token for the run that can open a pull request and nothing more.
 - `plugins/factory/run.sh <stage> <number>` runs one stage in a checkout: `issue` (an issue to a draft pull request,
   or a comment that says what blocks), `review` (one comment review, with no edit tool), `respond` (a reviewed
-  pull request to changes on its branch and one reply) and `update` (a pull request in conflict merged up to date
-  with its base, never rebased). Only `review` may post a review, since a review is what starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
+  pull request to changes on its branch and one reply) `update` (a pull request in conflict merged up to date
+  with its base, never rebased) and `comment` (a `/factory` comment answered or carried out). Only `review` may post a review, since a review is what starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
   (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
 - `factory-wait-ci <number>` is on the run's `PATH`: it waits for a pull request's checks, the factory's own runs
   aside, since the run that waits is one of them.
@@ -160,6 +160,13 @@ jobs:
   `run.sh` starts the merge itself, since the model's sandbox may not write every file a merge touches, and posts
   the run's last message on the pull request with a mark of the commit it was tried on. A pull request still in
   conflict at that commit is not tried again: a push to its branch frees it.
+- **A comment that starts with `/factory`**, on an issue or a pull request, is the `comment` stage: a question is
+  answered and nothing changes; a request is carried out (a change to the pull request, or an issue taken to a
+  draft pull request). The caller starts it on `issue_comment` and hands over the comment's id:
+  `with: { stage: comment, number: "${{ github.event.issue.number }}", comment: "${{ github.event.comment.id }}" }`,
+  under `if: startsWith(github.event.comment.body, '/factory') && github.event.comment.user.type != 'Bot'`.
+  GitHub runs that event from the default branch, so it works on a pull request in conflict too. A bot's comment
+  and one that does not start with the command start nothing, whatever the caller's `if:` says.
 - **Asking for a change** is a review on the pull request, of type comment or request changes, with or without
   comments on lines: the respond stage checks each request, then changes the branch or answers with the evidence.
   A plain comment starts nothing, and neither does a review on a pull request that conflicts with the default

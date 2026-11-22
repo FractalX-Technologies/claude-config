@@ -271,6 +271,8 @@ The factory's stages and the workflow that runs them:
 - Open: a self-hosted runner (the secret scrub hides `CLAUDE_CONFIG_DIR` from the hooks); a pull request stage
   loads the project settings of the branch it checks out.
 - Review: my own.
+- Stage `comment`: a person's comment that starts with `/factory`, on an issue or a pull request, is answered (a
+  question changes nothing) or carried out. It runs from the default branch, so conflicts do not stop it.
 - `run.sh update` starts the merge itself and posts the run's answer with a mark of the commit; a pull request
   already tried at its commit is left out of the next listing. First runs could not merge inside the sandbox.
 - Stage `update` and `.github/workflows/factory-conflicts.yml`: after a push to the default branch, the app's pull

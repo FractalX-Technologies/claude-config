@@ -23,7 +23,7 @@ const RESULT = { type: 'result', subtype: 'success', is_error: false, result: 'O
 const ISSUE = { number: 12, title: 'slugify drops accents', author: { login: 'someone' }, body: 'First line.\n\nExpected: `creme-brulee`.' };
 
 // A folder with a `claude` that records its arguments and prints a transcript, and a `gh` that answers from files.
-function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [], permissions = {}, prs = {} } = {}) {
+function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [], permissions = {}, prs = {}, comments = {} } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'factory-'));
   mkdirSync(path.join(dir, 'bin'));
   mkdirSync(path.join(dir, 'work'));
@@ -58,6 +58,8 @@ case "$1 $2" in
     f=${JSON.stringify(path.join(dir, 'mergeable'))}-$3-$n.json
     [ -f "$f" ] || f=${JSON.stringify(path.join(dir, 'mergeable'))}-$3-last.json
     cat "$f" ;;
+  "api repos/"*"/reactions") ;;
+  "api repos/"*"/issues/comments/"*) cat ${JSON.stringify(path.join(dir, 'comment'))}-$(basename "$2").json ;;
   "api repos/"*)
     f=${JSON.stringify(path.join(dir, 'permission'))}-$(basename "$(dirname "$2")")
     [ -f "$f" ] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
@@ -79,6 +81,8 @@ esac
       JSON.stringify({ baseRefName: 'main', headRefOid: `head-${n}`, comments: [], ...(typeof answer === 'string' ? { mergeable: answer } : answer) }),
     ));
   }
+  // Comments people wrote, by id.
+  for (const [id, comment] of Object.entries(comments)) writeFileSync(path.join(dir, `comment-${id}.json`), JSON.stringify(comment));
   // What the repository says a person may do; a login with no file is one GitHub does not know.
   for (const [login, permission] of Object.entries(permissions)) writeFileSync(path.join(dir, `permission-${login}`), `${permission}\n`);
   // What `gh pr checks` answers, call after call; the last answer repeats.
@@ -502,5 +506,49 @@ test('the workflow that lists them can read pull requests and nothing else', () 
   assert.doesNotMatch(yaml, /permission-(?!pull-requests: read)|ANTHROPIC|CLAUDE|actions\/checkout/);
   assert.match(yaml, /outputs:\n      numbers:/);
   assert.match(scripts(yaml), /plugins\/factory\/conflicting\.sh" "\$SLUG"/);
-  assert.match(workflow(), /issue\|review\|respond\|update\)/, 'the stage workflow knows the stage');
+  assert.match(workflow(), /issue\|review\|respond\|update[|)]/, 'the stage workflow knows the stage');
+});
+
+// A comment that starts with /factory, on an issue or a pull request: a question is answered and nothing changes,
+// a request is carried out. The workflow hands over the comment's id; its text is a quote, as an issue's is.
+const said = (body, user = { login: 'dev', type: 'User' }) => ({ 77: { body, user } });
+
+test('the comment stage hands Claude the comment as a quote and says a question changes nothing', () => {
+  const l = lab({ comments: said('/factory What does this test prove?\n\n$(touch "$HOME/pwned-comment")') });
+  const r = l.run(RUN, ['comment', '18', '77']);
+  assert.equal(r.status, 0, r.stderr);
+  const prompt = l.prompt();
+  assert.match(prompt, /Nobody is watching this run/);
+  assert.match(prompt, /#18/);
+  assert.match(prompt, /question/);
+  assert.match(prompt, /changes? nothing|change nothing/);
+  assert.match(prompt, /^> \/factory What does this test prove\?$/m);
+  assert.match(prompt, /^> \$\(touch "\$HOME\/pwned-comment"\)$/m);
+  assert.ok(!existsSync(path.join(l.dir, 'pwned-comment')), 'text from a comment was run');
+  assert.match(prompt, /`dev`/);
+  assert.doesNotMatch(prompt, /\{\{/);
+  assert.deepEqual(l.flag('--allowedTools'), ['Bash', 'Read', 'Edit', 'Write', 'Glob', 'Grep']);
+  assert.deepEqual(l.flag('--disallowedTools'), ['Bash(gh pr review*)']);
+  assert.ok(l.gh().some((line) => /^api repos\/\{owner\}\/\{repo\}\/issues\/comments\/77\/reactions .*content=eyes/.test(line)), 'whoever wrote sees that it was picked up');
+});
+
+test('a comment starts a run only when a person wrote it and it asks the factory', () => {
+  // The app's own reply is a comment too: answering it would never end.
+  const bot = lab({ comments: said('/factory again', { login: 'factory-app[bot]', type: 'Bot' }) });
+  const r = bot.run(RUN, ['comment', '18', '77']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(path.join(bot.dir, 'claude-args.json')), 'a run was started for a bot\'s comment');
+  const other = lab({ comments: said('Looks good to me. Try /factory next time.') });
+  assert.equal(other.run(RUN, ['comment', '18', '77']).status, 0);
+  assert.ok(!existsSync(path.join(other.dir, 'claude-args.json')), 'a comment that does not start with /factory started a run');
+  for (const args of [['comment', '18'], ['comment', '18', 'x'], ['comment', '18', '77', '9'], ['issue', '12', '77']]) {
+    assert.equal(lab({ comments: said('/factory hi') }).run(RUN, args).status, 64, JSON.stringify(args));
+  }
+});
+
+test('the workflow hands the comment to the stage and checks out the default branch for an issue', () => {
+  const yaml = workflow();
+  assert.match(yaml, /issue\|review\|respond\|update\|comment\)/);
+  assert.match(yaml, /\n      comment:\n        description: [^\n]+\n        type: string\n/, 'an id is too long for a number');
+  assert.match(scripts(yaml), /run\.sh" "\$STAGE" "\$NUMBER" \$\{COMMENT:\+"\$COMMENT"\}/);
 });

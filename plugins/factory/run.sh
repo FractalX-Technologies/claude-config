@@ -8,10 +8,14 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd -P)
-usage() { echo "usage: run.sh issue|review|respond|update <number>" >&2; exit 64; }
-[ $# -eq 2 ] || usage
+usage() { echo "usage: run.sh issue|review|respond|update <number> | run.sh comment <number> <comment id>" >&2; exit 64; }
+[ $# -ge 2 ] || usage
 stage=$1 number=$2
-case "$stage" in issue|review|respond|update) ;; *) usage ;; esac
+case "$stage" in
+  issue | review | respond | update) [ $# -eq 2 ] || usage ;;
+  comment) [ $# -eq 3 ] && [[ "$3" =~ ^[1-9][0-9]*$ ]] || usage ;;
+  *) usage ;;
+esac
 [[ "$number" =~ ^[1-9][0-9]*$ ]] || usage
 
 out=${FACTORY_OUT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/factory}
@@ -19,14 +23,26 @@ mkdir -p "$out"
 transcript="$out/$stage-$number.jsonl"
 summary="$out/$stage-$number.md"
 
-# The issue's text goes in after the placeholders are filled, and only ever as data: jq builds the quote, so
+# A person's text goes in after the placeholders are filled, and only ever as data: jq builds the quote, so
 # nothing in a title or a body is expanded by the shell or taken for a placeholder.
 prompt=$(<"$here/prompts/$stage.md")
 prompt=${prompt//\{\{number\}\}/$number}
+quoted='((.body // "") | gsub("\r"; "") | split("\n") | map(if . == "" then ">" else "> " + . end) | join("\n"))'
 if [ "$stage" = issue ]; then
   quote=$(gh issue view "$number" --json number,title,body,author | jq -r '
-    "Issue #\(.number), opened by `\(.author.login)`:\n\n> **\(.title)**\n>\n"
-    + ((.body // "") | gsub("\r"; "") | split("\n") | map(if . == "" then ">" else "> " + . end) | join("\n"))')
+    "Issue #\(.number), opened by `\(.author.login)`:\n\n> **\(.title)**\n>\n" + '"$quoted")
+  prompt="$prompt"$'\n\n'"$quote"
+fi
+if [ "$stage" = comment ]; then
+  said=$(gh api "repos/{owner}/{repo}/issues/comments/$3")
+  # The app's own replies are comments too, and so is a comment that only mentions the command: neither asks.
+  if [ "$(jq -r '.user.type' <<< "$said")" = Bot ] || ! jq -e '(.body // "") | startswith("/factory")' <<< "$said" > /dev/null; then
+    echo "Comment $3 is not a person's /factory comment: nothing to do."
+    exit 0
+  fi
+  # Whoever wrote sees at once that the comment was picked up.
+  gh api "repos/{owner}/{repo}/issues/comments/$3/reactions" -f content=eyes > /dev/null 2>&1 || true
+  quote=$(jq -r '"Comment by `\(.user.login)`:\n\n" + '"$quoted" <<< "$said")
   prompt="$prompt"$'\n\n'"$quote"
 fi
 
