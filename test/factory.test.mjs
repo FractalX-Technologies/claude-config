@@ -3,7 +3,7 @@
 // record how they were called; nothing here reaches a network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -50,6 +50,7 @@ case "$1 $2" in
     [ -f "$f" ] || f=${JSON.stringify(path.join(dir, 'checks-last.json'))}
     [ -f "$f" ] || { echo "no checks reported on the branch" >&2; exit 1; }
     cat "$f"; exit 8 ;;
+  "pr comment") cp "$5" ${JSON.stringify(path.join(dir, 'comment.md'))} ;;
   "pr list") cat ${JSON.stringify(path.join(dir, 'prs.json'))} ;;
   "pr view")
     n=$(cat ${JSON.stringify(path.join(dir, 'view'))}-$3.count 2>/dev/null || echo 0)
@@ -73,7 +74,10 @@ esac
   // The app's open pull requests, and what GitHub says of each one's merge, call after call; the last answer repeats.
   writeFileSync(path.join(dir, 'prs.json'), JSON.stringify(Object.keys(prs).map((n) => ({ number: Number(n) }))));
   for (const [n, answers] of Object.entries(prs)) {
-    answers.forEach((mergeable, i) => writeFileSync(path.join(dir, `mergeable-${n}-${i === answers.length - 1 ? 'last' : i}.json`), JSON.stringify({ mergeable })));
+    answers.forEach((answer, i) => writeFileSync(
+      path.join(dir, `mergeable-${n}-${i === answers.length - 1 ? 'last' : i}.json`),
+      JSON.stringify({ baseRefName: 'main', headRefOid: `head-${n}`, comments: [], ...(typeof answer === 'string' ? { mergeable: answer } : answer) }),
+    ));
   }
   // What the repository says a person may do; a login with no file is one GitHub does not know.
   for (const [login, permission] of Object.entries(permissions)) writeFileSync(path.join(dir, `permission-${login}`), `${permission}\n`);
@@ -122,7 +126,7 @@ test('text from an issue is never run: it reaches the prompt as it was written',
 
 test('a stage that changes code may edit; the review stage may not, and neither asks anyone', () => {
   for (const stage of ['issue', 'respond', 'update']) {
-    const l = lab();
+    const l = lab({ prs: { 12: ['CONFLICTING'] } });
     assert.equal(l.run(RUN, [stage, '12']).status, 0);
     assert.deepEqual(l.flag('--allowedTools'), ['Bash', 'Read', 'Edit', 'Write', 'Glob', 'Grep'], stage);
     assert.deepEqual(l.flag('--permission-mode'), ['acceptEdits'], stage);
@@ -398,7 +402,7 @@ test('the board workflow moves a card and can do nothing else', () => {
 // So after every push to the default branch the factory's own pull requests are looked at, and the ones that
 // conflict are brought up to date by a run.
 test('the update stage is told to merge the base branch in, and may never rewrite the branch', () => {
-  const l = lab();
+  const l = lab({ prs: { 16: ['CONFLICTING'] } });
   const r = l.run(RUN, ['update', '16']);
   assert.equal(r.status, 0, r.stderr);
   const prompt = l.prompt();
@@ -406,6 +410,8 @@ test('the update stage is told to merge the base branch in, and may never rewrit
   assert.match(prompt, /pull request #16/);
   assert.match(prompt, /conflicts/);
   assert.match(prompt, /git merge/);
+  assert.match(prompt, /posted on the pull request/);
+  assert.doesNotMatch(prompt, /gh pr comment/, 'the run posts the answer itself, with the commit it tried: two comments would say it twice');
   assert.doesNotMatch(prompt, /\{\{/);
   assert.deepEqual(l.gh().filter((line) => line.startsWith('issue view')), [], 'there is no issue to quote');
   for (const pattern of ['Bash(git rebase*)', 'Bash(git push*--force*)', 'Bash(git push* -f*)', 'Bash(gh pr review*)']) {
@@ -413,13 +419,71 @@ test('the update stage is told to merge the base branch in, and may never rewrit
   }
 });
 
+// The model's commands run in a sandbox that may not write some files a merge touches (a workflow file the base
+// changed, for one): the merge is started before the model, which is left the files in conflict.
+test('the update stage starts the merge itself, and leaves the model the files in conflict', () => {
+  const l = lab({ prs: { 16: ['CONFLICTING'] } });
+  const work = path.join(l.dir, 'work');
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'maintenance.auto=false', '-c', 'gc.auto=0', ...args], { cwd: work, encoding: 'utf8', env: { ...process.env, HOME: l.dir } });
+  const commit = (files, message) => {
+    for (const [file, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(work, file)), { recursive: true });
+      writeFileSync(path.join(work, file), text);
+    }
+    git('add', '-A');
+    git('commit', '-qm', message);
+  };
+  git('init', '-q', '--bare', path.join(l.dir, 'origin.git'));
+  git('init', '-q', '-b', 'main');
+  git('remote', 'add', 'origin', path.join(l.dir, 'origin.git'));
+  commit({ 'a.txt': 'one\n', '.github/workflows/ci.yml': 'v1\n' }, 'start');
+  git('push', '-q', 'origin', 'main');
+  git('checkout', '-q', '-b', 'pr');
+  commit({ 'a.txt': 'ours\n' }, 'the pull request');
+  git('checkout', '-q', 'main');
+  commit({ 'a.txt': 'theirs\n', '.github/workflows/ci.yml': 'v2\n' }, 'the base moves');
+  git('push', '-q', 'origin', 'main');
+  git('checkout', '-q', 'pr');
+
+  const r = l.run(RUN, ['update', '16']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(path.join(work, '.git/MERGE_HEAD')), 'no merge was started');
+  assert.equal(git('diff', '--name-only', '--diff-filter=U').trim(), 'a.txt');
+  assert.equal(readFileSync(path.join(work, '.github/workflows/ci.yml'), 'utf8'), 'v2\n', 'what did not conflict is already merged');
+  assert.equal(git('rev-parse', '--abbrev-ref', 'HEAD').trim(), 'pr');
+});
+
+test('the update stage\'s last message is posted on the pull request, with the commit it was tried on', () => {
+  const pr = { 16: [{ mergeable: 'CONFLICTING', headRefOid: 'abc123' }] };
+  const l = lab({ prs: pr });
+  assert.equal(l.run(RUN, ['update', '16']).status, 0);
+  assert.equal(l.gh().filter((line) => /^pr comment 16 --body-file /.test(line)).length, 1, l.gh().join('\n'));
+  const comment = readFileSync(path.join(l.dir, 'comment.md'), 'utf8');
+  assert.match(comment, /Opened draft pull request #13\./);
+  assert.match(comment, /<!-- factory:update abc123 -->/);
+
+  // A run that died says so too: with no mark, every push to the default branch would start it again.
+  const dead = lab({ prs: pr, exit: 1, result: [] });
+  assert.notEqual(dead.run(RUN, ['update', '16']).status, 0);
+  const left = readFileSync(path.join(dead.dir, 'comment.md'), 'utf8');
+  assert.match(left, /<!-- factory:update abc123 -->/);
+  assert.match(left, /without a result/i);
+
+  const other = lab();
+  assert.equal(other.run(RUN, ['respond', '12']).status, 0);
+  assert.deepEqual(other.gh().filter((line) => line.startsWith('pr comment')), [], 'the other stages comment for themselves');
+});
+
 test('the factory\'s pull requests that conflict are listed, once GitHub has made up its mind', () => {
   const env = { GH_REPO: 'o/r', FACTORY_MERGEABLE_POLL: '0', FACTORY_MERGEABLE_TRIES: '3' };
-  const l = lab({ prs: { 16: ['UNKNOWN', 'CONFLICTING'], 18: ['CONFLICTING'], 20: ['MERGEABLE'], 21: ['UNKNOWN'] } });
+  const tried = (sha) => ({ mergeable: 'CONFLICTING', comments: [{ body: 'Left as it was.' }, { body: `It cannot be merged.\n\n<!-- factory:update ${sha} -->` }] });
+  const l = lab({ prs: { 16: ['UNKNOWN', 'CONFLICTING'], 18: ['CONFLICTING'], 20: ['MERGEABLE'], 21: ['UNKNOWN'], 22: [tried('head-22')], 23: [tried('an-older-commit')] } });
   const r = l.run(CONFLICTING, ['factory-app'], env);
   assert.equal(r.status, 0, r.stderr);
-  assert.deepEqual(JSON.parse(r.stdout), [16, 18]);
+  assert.deepEqual(JSON.parse(r.stdout), [16, 18, 23]);
   assert.match(r.stderr, /#21/, 'a pull request GitHub never answered for is named, not guessed');
+  assert.match(r.stderr, /#22/, 'a run already gave up on this commit: trying again on every push would say the same thing each time');
+  assert.doesNotMatch(r.stderr, /#23/, 'the branch moved since the attempt: it is tried again');
   assert.ok(l.gh().some((line) => /^pr list .*--app factory-app\b.*--state open/.test(line)), l.gh()[0]);
   assert.equal(l.gh().filter((line) => line.startsWith('pr view 21 ')).length, 3);
 

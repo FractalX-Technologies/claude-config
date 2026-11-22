@@ -37,6 +37,18 @@ if [ "$stage" = review ]; then tools=(Bash Read Glob Grep) mode=default never=('
 # Bringing a branch up to date is a merge: the commits people reviewed stay the commits on the branch.
 if [ "$stage" = update ]; then never+=('Bash(git rebase*)' 'Bash(git push*--force*)' 'Bash(git push* -f*)'); fi
 
+# The merge of the base is started here, not by the model: its commands run in a sandbox that may not write some
+# files a merge touches (a workflow file the base changed, for one), and git stops at the first of them.
+if [ "$stage" = update ]; then
+  pr=$(gh pr view "$number" --json baseRefName,headRefOid)
+  base=$(jq -r '.baseRefName' <<< "$pr") head=$(jq -r '.headRefOid' <<< "$pr")
+  if git fetch -q origin "$base" 2> /dev/null; then
+    git merge --no-commit --no-ff "origin/$base" > /dev/null 2>&1 || true # it stops at the conflicts: that is the task
+  else
+    echo "run.sh: $base could not be fetched, so no merge was started." >&2
+  fi
+fi
+
 # The factory's own commands (factory-wait-ci) are the run's to call.
 export PATH="$here/bin:$PATH"
 
@@ -69,6 +81,19 @@ lines() { jq -R -r "fromjson? | $1" "$transcript" 2>/dev/null || true; }
 } > "$summary"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
 cat "$summary"
+
+# What the update stage ended with goes on the pull request, marked with the commit it was tried on: a pull
+# request that is still in conflict at that commit is not tried again (conflicting.sh).
+if [ "$stage" = update ]; then
+  comment="$out/$stage-$number.comment.md"
+  {
+    answer=$(jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "result") | .result // empty] | last // empty' "$transcript" 2> /dev/null || true)
+    echo "${answer:-The run that was bringing this branch up to date ended without a result: the workflow run has what happened.}"
+    echo
+    echo "<!-- factory:update $head -->"
+  } > "$comment"
+  gh pr comment "$number" --body-file "$comment" > /dev/null || echo "run.sh: the comment on pull request #$number could not be posted." >&2
+fi
 
 [ "$status" -eq 0 ] || exit "$status"
 [ "$(lines 'select(.type == "result") | .is_error' | tail -1)" = false ]

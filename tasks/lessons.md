@@ -34,3 +34,9 @@
 - **Rule:** who may start a run is asked of the repository (`collaborators/<login>/permission`), in a job, and
   every trigger is tried once as the person it is for, not only as the app.
 
+## 2026-11-22 — A git command the model's sandbox could not finish
+- **Pattern:** the update stage told the model to `git merge` the base; the sandbox that hides the secrets also
+  makes workflow files read-only, the base had changed one, and the merge stopped before any conflict was seen.
+- **Rule:** a mechanical git step that may touch files the model is denied (workflows, the config) is run by the
+  stage's script before the model starts, which is left only the judgement: the conflicts.
+

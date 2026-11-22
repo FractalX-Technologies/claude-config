@@ -37,8 +37,8 @@ result later. It adds to *How work is done*.
   command that does the same, and where a message says to ask or to confirm, there is nobody: that is **stuck**.
 - Push only to the branch the run created or was started on; never force-push a branch someone else pushed to.
 - A branch that conflicts with its base is brought up to date with a merge of the base, each conflict resolved so
-  that both changes keep what they were for; never a rebase, which rewrites what people reviewed. A push GitHub
-  refuses (the base changed a workflow file, which the run's token may not push) is a person's to make: say so.
+  that both changes keep what they were for; never a rebase, which rewrites what people reviewed. The merge is
+  started before the run. A push GitHub refuses is a person's to make: say so.
 - The checkout holds this task alone: never `git stash` (denied). Read what the code was with `git show HEAD:<path>`.
 - Every run that pushed waits once for CI on its last push before it ends: `factory-wait-ci <number>`, giving the
   command ten minutes. It leaves the factory's own checks aside (this run is one of them, so `gh pr checks --watch`

@@ -157,8 +157,9 @@ jobs:
     secrets: { app-private-key: "…", anthropic-api-key: "…" }
   ```
 
-  Where the base changed a workflow file, the app may not push the merge (it has no Workflows permission, on
-  purpose): the run says so on the pull request, and a person presses "Update branch".
+  `run.sh` starts the merge itself, since the model's sandbox may not write every file a merge touches, and posts
+  the run's last message on the pull request with a mark of the commit it was tried on. A pull request still in
+  conflict at that commit is not tried again: a push to its branch frees it.
 - **Asking for a change** is a review on the pull request, of type comment or request changes, with or without
   comments on lines: the respond stage checks each request, then changes the branch or answers with the evidence.
   A plain comment starts nothing, and neither does a review on a pull request that conflicts with the default
