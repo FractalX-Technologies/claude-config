@@ -15,7 +15,7 @@
 
 ## Current state
 
-- Suite, as CI runs it: 139/139. `check.sh` mutants on a copy: 4 of 4 killed.
+- Suite, as CI runs it: 139/139 at `a168aa4`, and 141/141 with another session's `d3aa5f4` under this handoff. `check.sh` mutants on a copy: 4 of 4 killed.
 - `check.sh` against GitHub, through the installed link: `diagram-design current`; `code-nestjs`, `code-swiftui`,
   `motion-design` `unknown` (a license, no source recorded).
 - Not run: a real update of an adopted skill (nothing was newer). The merge steps of `meta-skill-updates` ran on a
