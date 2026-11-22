@@ -124,12 +124,14 @@ jobs:
           fetch-depth: 0
 
       # The sandbox (see below) leaves empty stand-ins in the checkout for the files it protects. Git must not
-      # see them: `git add -A` would fail on them or commit them. A file of these names that the repository
-      # already tracks is not affected.
+      # see them: `git add -A` would fail on them or commit them. Only a name the repository does not have is
+      # hidden, and only at its root: where the repository has a `.vscode` of its own, new files in it still show.
       - name: Keep the sandbox's stand-ins out of git
         run: |
-          printf '%s\n' '.bash_profile' '.bashrc' '.profile' '.zprofile' '.zshrc' '.gitconfig' '.ripgreprc' \
-            '.mcp.json' '.idea' '.vscode' >> .git/info/exclude
+          for name in '.bash_profile' '.bashrc' '.profile' '.zprofile' '.zshrc' '.gitconfig' '.ripgreprc' \
+            '.mcp.json' '.idea' '.vscode'; do
+            if [ ! -e "$name" ]; then echo "/$name" >> .git/info/exclude; fi
+          done
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -227,6 +229,13 @@ jobs:
           linked=$(gh issue view "$NUMBER" --json closedByPullRequestsReferences --jq '.closedByPullRequestsReferences | length')
           if [ "$linked" -gt 0 ]; then status="In review"; else status="Blocked"; fi
           "$RUNNER_TEMP/kit/plugins/factory/board.sh" "$OWNER" "$BOARD" "$ISSUE_URL" "$status"
+
+      # For whoever reads the job: what is in the checkout that no commit holds, the hidden stand-ins included.
+      - name: What the run left in the checkout
+        if: always()
+        run: |
+          git status --short --ignored | head -40
+          git status --short --ignored | cut -c4- | head -40 | xargs -r -d '\n' stat -c '%F  %s bytes  %n' || true
 
       - name: Keep the transcript
         if: always() && inputs.keep-transcript
