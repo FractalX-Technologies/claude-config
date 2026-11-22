@@ -274,3 +274,16 @@ The factory's stages and the workflow that runs them:
 - `.github/workflows/factory-board.yml`: a reusable workflow that only moves a card, for what happens to an issue
   after its run (a person merging closes it: `Done`). Found by the owner's first ticket, whose card stayed in review.
 
+
+`diagram-design` adopted into `local`, from `cathrynlavery/diagram-design` at `d7b0176` (2.6.170):
+- The skill's folder whole (references, 242 example files, 8 scripts) with upstream's `LICENSE` and
+  `THIRD_PARTY_LICENSES.md`; the upstream repo's commands, maintainer scripts and docs stay out.
+- Changed from upstream: the frontmatter (a shorter description, author, source); a Project overrides section
+  (the install is read-only, a brand is a profile plus a project marker, Playwright is never installed) with a
+  pointer to it in `onboarding.md` and `profiles.md`; 31 lines the content test refuses (`Bezier`, `cafe`,
+  `whisker-low` and `whisker-high`, `low` and `high` in `type-bar.md`, `node` for a JS parameter in
+  `export_png.py`, a comment in `mermaid_extract.py`, a split literal in `export_svg.py`).
+- Suite: 136/136, the content test seen red on the raw copy (30 lines and one id). `self_check.py`,
+  `verify_geometry.py` and `export_svg.py` run on the changed examples.
+- Open: an update from upstream is a copy by hand, with these changes made again.
+- Review: my own.

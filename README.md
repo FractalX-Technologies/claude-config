@@ -17,7 +17,7 @@ path, and the hooks share `lib/`.
 | `plugins/local/instructions.md` | imported by `~/.claude/CLAUDE.md` | How Claude works with a person at the keyboard: modes, your machine, when to commit |
 | `plugins/factory/` | a config folder of its own | For a run nobody watches (CI): its instructions and the commands it is denied. See [Factory profile](#factory-profile) |
 | `plugins/core/rules/` | `~/.claude/rules/` | Rules per stack (shared, KMP, Android, iOS, macOS, Next.js, NestJS, .NET, Electron, Supabase, Terraform, GitHub Actions). Each `RULE.md` loads with the files its `paths:` names |
-| `plugins/*/skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design and motion |
+| `plugins/*/skills/` | `~/.claude/skills/<name>` | `code-*` (how to write a language well), `flow-*` (debug, refactor, slices, ship, handoff…), `think-*` (grill, devil's advocate), design, motion and diagrams |
 | `plugins/core/agents/` | `~/.claude/agents/` | `review-code`, `review-tests`, `review-security`, `review-parity` |
 | `plugins/core/hooks/` | `~/.claude/hooks/` | Guards on every tool call: secrets, dangerous commands, tests, lockfiles, generated files… See [`hooks/README.md`](plugins/core/hooks/README.md) |
 | `plugins/local/.mcp.json` | user-scope MCP servers | The MCP servers everyone gets, by name. Today `infisical-docs` (Infisical's documentation, no account) and `vercel` (each person signs in, see [Vercel](#vercel)) |
@@ -251,5 +251,8 @@ stay.
 - An update runs whatever lands on `main`, hooks and MCP servers included: only people you trust should be able to
   push there.
 - Some skills are adapted from public MIT-licensed skills (for example `code-nestjs` by Jeffallan, `motion-design`
-  by LottieFiles); each `SKILL.md` keeps its license and author in its frontmatter. Everything else is under the
-  [MIT license](LICENSE).
+  by LottieFiles, `diagram-design` by Cathryn Lavery); each `SKILL.md` keeps its license and author in its
+  frontmatter. Everything else is under the [MIT license](LICENSE).
+- `diagram-design` (in `local`) keeps its upstream `LICENSE` and `THIRD_PARTY_LICENSES.md` beside it. Its checks
+  run on `python3`; its PNG preview and export also need Playwright for Python, which nothing here installs. A
+  brand's colors and fonts are saved in `~/.diagram-design/profiles/`, never in the skill's folder.

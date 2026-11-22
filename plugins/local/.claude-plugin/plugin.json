@@ -1,6 +1,6 @@
 {
   "name": "local",
-  "description": "For a person at the keyboard: step-by-step and overnight work, handoff, device, pipelines, release and reset procedures, plan questioning, and the shared MCP servers.",
+  "description": "For a person at the keyboard: step-by-step and overnight work, handoff, device, pipelines, release and reset procedures, plan questioning, diagram design, and the shared MCP servers.",
   "dependencies": [
     "core"
   ]
