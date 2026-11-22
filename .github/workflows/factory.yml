@@ -123,6 +123,14 @@ jobs:
           ref: ${{ steps.pr.outputs.head }}
           fetch-depth: 0
 
+      # The sandbox (see below) leaves empty stand-ins in the checkout for the files it protects. Git must not
+      # see them: `git add -A` would fail on them or commit them. A file of these names that the repository
+      # already tracks is not affected.
+      - name: Keep the sandbox's stand-ins out of git
+        run: |
+          printf '%s\n' '.bash_profile' '.bashrc' '.profile' '.zprofile' '.zshrc' '.gitconfig' '.ripgreprc' \
+            '.mcp.json' '.idea' '.vscode' >> .git/info/exclude
+
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ inputs.node-version }}

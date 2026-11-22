@@ -35,6 +35,9 @@ fi
 tools=(Bash Read Edit Write Glob Grep) mode=acceptEdits never=('Bash(gh pr review*)')
 if [ "$stage" = review ]; then tools=(Bash Read Glob Grep) mode=default never=('Bash(git commit*)' 'Bash(git push*)'); fi
 
+# The factory's own commands (factory-wait-ci) are the run's to call.
+export PATH="$here/bin:$PATH"
+
 status=0
 claude -p "$prompt" --model "${FACTORY_MODEL:-sonnet}" --permission-mode "$mode" --allowedTools "${tools[@]}" \
   --disallowedTools "${never[@]}" --max-budget-usd "${FACTORY_BUDGET_USD:-2}" --output-format stream-json --verbose < /dev/null > "$transcript" || status=$?
@@ -56,7 +59,11 @@ lines() { jq -R -r "fromjson? | $1" "$transcript" 2>/dev/null || true; }
     | select(test("DENIED|has been denied")) | "- " + (gsub("\n"; " ") | .[0:240])'
   echo
   echo "### Run"
-  lines 'select(.type == "result") | "turns=\(.num_turns) cost=$\(.total_cost_usd) duration=\(.duration_ms / 1000 | floor)s"'
+  # A command that ends in the background after the run adds a result line of its own: the turns and the time
+  # add up, and the last line's cost is the total.
+  jq -R -s -r '[split("\n")[] | fromjson? | select(.type == "result")] | select(length > 0)
+    | "turns=\(map(.num_turns) | add) cost=$\(last.total_cost_usd) duration=\(map(.duration_ms) | add / 1000 | floor)s"' \
+    "$transcript" 2> /dev/null || true
 } > "$summary"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
 cat "$summary"

@@ -37,10 +37,11 @@ result later. It adds to *How work is done*.
   command that does the same, and where a message says to ask or to confirm, there is nobody: that is **stuck**.
 - Push only to the branch the run created or was started on; never force-push a branch someone else pushed to.
 - The checkout holds this task alone: never `git stash` (denied). Read what the code was with `git show HEAD:<path>`.
-- Every run that pushed waits once for CI on its last push before it ends: `gh pr checks <number> --watch`. Where
-  it reports no checks yet, ask again after a short wait; a repository with no CI has nothing to wait for. Red is
-  this run's to fix; still red after three honest attempts is **stuck**. Never wait for a review: a review starts a
-  run of its own.
+- Every run that pushed waits once for CI on its last push before it ends: `factory-wait-ci <number>`, giving the
+  command ten minutes. It leaves the factory's own checks aside (this run is one of them, so `gh pr checks --watch`
+  would wait for itself), names a check that failed, and says so when the repository has no CI. Red is this run's
+  to fix; still red after three honest attempts is **stuck**. Never wait for a review: a review starts a run of its
+  own.
 
 ## Reviews
 

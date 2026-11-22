@@ -262,7 +262,12 @@ The factory's stages and the workflow that runs them:
 - e2e: 128/128 (14 new, seen red); 16 mutants of the two scripts on a copy, 16 killed. Live from this machine: the
   issue stage through `run.sh` on a real ticket (test red, fix, draft pull request, CI green) and the card moved
   through `board.sh`.
-- Not run yet: the workflow itself. It needs the app and the Claude credential, which only the owner can create.
+- First real runs, on a hosted runner as the organisation's app: an issue to a draft pull request, CI, one review,
+  the answer to it on the same branch, and the card moved, with nothing merged. What they showed, fixed here:
+  the secret scrub needs `bubblewrap` and `socat` (the first run could start no command); the sandbox leaves
+  stand-in files in the checkout; `gh pr checks --watch` waits for the factory's own run (`factory-wait-ci`); a
+  background command's result line doubled the summary. Only the review stage may post a review.
+- e2e: 135/135; 10 more mutants (the wait and the summary), 10 killed.
 - Open: a self-hosted runner (the secret scrub hides `CLAUDE_CONFIG_DIR` from the hooks); a pull request stage
   loads the project settings of the branch it checks out.
 - Review: my own.

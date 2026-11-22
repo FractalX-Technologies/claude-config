@@ -86,6 +86,8 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
   pull request to changes on its branch and one reply). Only `review` may post a review, since a review is what
   starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
   (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
+- `factory-wait-ci <number>` is on the run's `PATH`: it waits for a pull request's checks, the factory's own runs
+  aside, since the run that waits is one of them.
 
 ### Factory in GitHub Actions
 
@@ -133,6 +135,9 @@ jobs:
   can't approve its own pull request, so a person's review is what merges.
 - `keep-transcript: true` keeps the transcript as an artifact for a week. It quotes the repository's files: leave it
   off in a public repository.
+- On Linux the secret scrub runs every command of the model in a sandbox: the workflow installs `bubblewrap` and
+  `socat` for it, and keeps the empty stand-ins the sandbox leaves in the checkout (`.bashrc`, `.gitconfig`,
+  `.mcp.json`, `.vscode` and the like) out of git.
 - Not here yet: a self-hosted runner. With the secret scrub on, the hooks can't see `CLAUDE_CONFIG_DIR`, so a
   profile outside `~/.claude` would lose its always-refuse guard.
 

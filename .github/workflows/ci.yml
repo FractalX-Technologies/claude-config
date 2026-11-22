@@ -23,6 +23,6 @@ jobs:
         with:
           node-version: 22
       - name: Syntax-check the scripts
-        run: for f in install.sh scripts/*.sh plugins/*/*.sh plugins/*/hooks/*.sh plugins/*/hooks/lib/*.sh; do bash -n "$f"; done
+        run: for f in install.sh scripts/*.sh plugins/*/*.sh plugins/*/bin/* plugins/*/hooks/*.sh plugins/*/hooks/lib/*.sh; do bash -n "$f"; done
       - name: Hooks and installer tests
         run: node --test plugins/*/hooks/test/*.test.mjs test/*.test.mjs

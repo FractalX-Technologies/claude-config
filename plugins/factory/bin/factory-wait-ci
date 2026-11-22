@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Waits for the checks of a pull request, the factory's own runs aside: the run that waits is one of those checks,
+# so waiting for every check would be waiting for itself.
+#   factory-wait-ci <pull request number>
+# Exit 0: every other check passed, or the pull request has no CI. 1: a check failed; it is named. 2: checks were
+# still running at the limit (FACTORY_CI_TIMEOUT, 540 s: under the ten minutes a command may take).
+set -euo pipefail
+
+if [ $# -ne 1 ] || ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then echo "usage: factory-wait-ci <pull request number>" >&2; exit 64; fi
+pr=$1
+own=${GITHUB_WORKFLOW:-}
+poll=${FACTORY_CI_POLL:-10} appear=${FACTORY_CI_APPEAR:-60} limit=${FACTORY_CI_TIMEOUT:-540}
+
+start=$SECONDS
+while :; do
+  # `gh pr checks` exits non-zero while a check is pending or failed, and prints nothing when there is none.
+  checks=$(gh pr checks "$pr" --json name,workflow,bucket 2> /dev/null) || true
+  rest=$(jq -c --arg own "$own" '[.[] | select($own == "" or .workflow != $own)]' <<< "${checks:-[]}")
+  waited=$((SECONDS - start))
+  if [ "$(jq 'length' <<< "$rest")" -eq 0 ]; then
+    # A check takes a moment to appear after a push: only then is "none" an answer.
+    if [ "$waited" -ge "$appear" ]; then echo "No CI check on pull request $pr."; exit 0; fi
+  elif [ "$(jq '[.[] | select(.bucket == "pending")] | length' <<< "$rest")" -eq 0 ]; then
+    jq -r '.[] | "\(.name): \(.bucket)"' <<< "$rest"
+    [ "$(jq '[.[] | select(.bucket == "fail" or .bucket == "cancel")] | length' <<< "$rest")" -eq 0 ] || exit 1
+    exit 0
+  fi
+  if [ "$waited" -ge "$limit" ]; then
+    echo "Still running after ${waited}s:"
+    jq -r '.[] | select(.bucket == "pending") | "\(.name): pending"' <<< "$rest"
+    exit 2
+  fi
+  sleep "$poll"
+done

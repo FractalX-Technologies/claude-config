@@ -12,13 +12,14 @@ import { fileURLToPath } from 'node:url';
 const KIT = process.env.KIT_DIR ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RUN = path.join(KIT, 'plugins/factory/run.sh');
 const BOARD = path.join(KIT, 'plugins/factory/board.sh');
+const WAIT = path.join(KIT, 'plugins/factory/bin/factory-wait-ci');
 const WORKFLOW = path.join(KIT, '.github/workflows/factory.yml');
 
 const RESULT = { type: 'result', subtype: 'success', is_error: false, result: 'Opened draft pull request #13.', num_turns: 4, total_cost_usd: 0.1234, duration_ms: 21000 };
 const ISSUE = { number: 12, title: 'slugify drops accents', author: { login: 'someone' }, body: 'First line.\n\nExpected: `creme-brulee`.' };
 
 // A folder with a `claude` that records its arguments and prints a transcript, and a `gh` that answers from files.
-function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [] } = {}) {
+function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [] } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'factory-'));
   mkdirSync(path.join(dir, 'bin'));
   mkdirSync(path.join(dir, 'work'));
@@ -29,14 +30,22 @@ function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = []
   script('claude', `#!/usr/bin/env node
 const fs = require('fs');
 fs.writeFileSync(${JSON.stringify(path.join(dir, 'claude-args.json'))}, JSON.stringify(process.argv.slice(2)));
+fs.writeFileSync(${JSON.stringify(path.join(dir, 'claude-path'))}, process.env.PATH);
 console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', name: 'Bash', input: { command: 'npm test' } }] } }));
-console.log(${JSON.stringify(JSON.stringify(result))});
+for (const line of ${JSON.stringify([].concat(result).map((r) => JSON.stringify(r)))}) console.log(line);
 process.exit(${exit});
 `);
   script('gh', `#!/usr/bin/env bash
 printf '%s\\n' "$*" >> ${JSON.stringify(path.join(dir, 'gh.log'))}
 case "$1 $2" in
   "issue view") cat ${JSON.stringify(path.join(dir, 'issue.json'))} ;;
+  "pr checks")
+    n=$(cat ${JSON.stringify(path.join(dir, 'checks.count'))} 2>/dev/null || echo 0)
+    echo $((n + 1)) > ${JSON.stringify(path.join(dir, 'checks.count'))}
+    f=${JSON.stringify(path.join(dir, 'checks'))}-$n.json
+    [ -f "$f" ] || f=${JSON.stringify(path.join(dir, 'checks-last.json'))}
+    [ -f "$f" ] || { echo "no checks reported on the branch" >&2; exit 1; }
+    cat "$f"; exit 8 ;;
   "project view") echo '{"id":"PROJECT"}' ;;
   "project item-list") cat ${JSON.stringify(path.join(dir, 'items.json'))} ;;
   "project field-list") cat ${JSON.stringify(path.join(dir, 'fields.json'))} ;;
@@ -46,6 +55,8 @@ esac
   writeFileSync(path.join(dir, 'issue.json'), JSON.stringify(issue));
   writeFileSync(path.join(dir, 'items.json'), JSON.stringify({ items }));
   writeFileSync(path.join(dir, 'fields.json'), JSON.stringify({ fields }));
+  // What `gh pr checks` answers, call after call; the last answer repeats.
+  checks.forEach((answer, i) => writeFileSync(path.join(dir, i === checks.length - 1 ? 'checks-last.json' : `checks-${i}.json`), JSON.stringify(answer)));
   const run = (script_, args, env = {}) => spawnSync('bash', [script_, ...args], {
     cwd: path.join(dir, 'work'),
     encoding: 'utf8',
@@ -168,6 +179,66 @@ test('a run that failed fails the job, and still leaves its summary', () => {
   assert.match(readFileSync(path.join(l.dir, 'out/issue-12.md'), 'utf8'), /error_max_budget_usd/);
 });
 
+test('a second result line, as a finished background command adds one, does not double the summary', () => {
+  const l = lab({ result: [RESULT, { ...RESULT, result: 'That notification was the CI watch ending.', num_turns: 1, total_cost_usd: 0.15, duration_ms: 1000 }] });
+  const r = l.run(RUN, ['issue', '12']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout.match(/^turns=/gm).length, 1);
+  assert.match(r.stdout, /cost=\$0\.15/, 'the last line holds the total');
+  assert.match(r.stdout, /Opened draft pull request #13\./);
+});
+
+test('the run finds the factory\'s own commands on its PATH', () => {
+  const l = lab();
+  assert.equal(l.run(RUN, ['issue', '12']).status, 0);
+  assert.equal(readFileSync(path.join(l.dir, 'claude-path'), 'utf8').split(':')[0], path.join(KIT, 'plugins/factory/bin'));
+});
+
+// ── factory-wait-ci ─────────────────────────────────────────────────────────────────────────────────────────────
+// The factory's runs are checks of the pull request too, and the one that waits is among them: waiting for every
+// check would wait for itself.
+// The limit only bounds a wait that should have ended: a broken helper fails in seconds, not in ten minutes.
+const FAST = { FACTORY_CI_POLL: '0', FACTORY_CI_TIMEOUT: '3', GITHUB_WORKFLOW: 'Factory' };
+const check = (name, bucket, workflow = 'ci') => ({ name, bucket, workflow });
+
+test('waiting for CI ends when the other workflows\' checks pass, whatever the factory\'s own still do', () => {
+  const l = lab({ checks: [
+    [check('test', 'pending'), check('respond / respond 16', 'pending', 'Factory')],
+    [check('test', 'pass'), check('lint', 'skipping'), check('respond / respond 16', 'pending', 'Factory')],
+  ] });
+  const r = l.run(WAIT, ['16'], FAST);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /test: pass/);
+  assert.doesNotMatch(r.stdout, /respond/);
+  assert.equal(l.gh().filter((call) => call.startsWith('pr checks 16')).length, 2);
+});
+
+test('a failed check fails the wait and is named', () => {
+  for (const bucket of ['fail', 'cancel']) {
+    const l = lab({ checks: [[check('test', bucket), check('lint', 'pass')]] });
+    const r = l.run(WAIT, ['16'], FAST);
+    assert.equal(r.status, 1, bucket);
+    assert.match(r.stdout, new RegExp(`test: ${bucket}`));
+  }
+});
+
+test('a pull request with no CI is not waited for past the time checks take to appear', () => {
+  for (const checks of [[], [[check('review / review 16', 'pending', 'Factory')]]]) {
+    const l = lab({ checks });
+    const r = l.run(WAIT, ['16'], { ...FAST, FACTORY_CI_APPEAR: '0' });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /no CI/i);
+  }
+});
+
+test('checks that never finish end the wait with their names, and a wrong call stops at once', () => {
+  const l = lab({ checks: [[check('test', 'pending')]] });
+  const r = l.run(WAIT, ['16'], { ...FAST, FACTORY_CI_TIMEOUT: '0' });
+  assert.equal(r.status, 2);
+  assert.match(r.stdout, /test/);
+  for (const args of [[], ['x'], ['16', '17']]) assert.equal(lab().run(WAIT, args, FAST).status, 64, JSON.stringify(args));
+});
+
 // ── board.sh ────────────────────────────────────────────────────────────────────────────────────────────────────
 const URL = 'https://github.com/acme/widgets/issues/12';
 const FIELDS = [
@@ -251,5 +322,8 @@ test('the run\'s token can open a pull request and nothing more: a review cannot
   assert.match(yaml, /apt-get install [^\n]*bubblewrap socat/);
   assert.match(yaml, /\/etc\/apparmor\.d\/bwrap/);
   assert.ok(yaml.indexOf('bubblewrap socat') < yaml.indexOf('name: Run the stage'), 'installed before the stage runs');
+  // The sandbox leaves empty stand-ins for the files it protects in the checkout: they must never reach a commit.
+  for (const name of ['.bashrc', '.gitconfig', '.mcp.json', '.vscode']) assert.match(yaml, new RegExp(`'\\${name}'[^\n]*|'\\${name}'`), name);
+  assert.match(yaml, /\.git\/info\/exclude/);
   assert.match(yaml, /install\.sh" --profile factory/);
 });
