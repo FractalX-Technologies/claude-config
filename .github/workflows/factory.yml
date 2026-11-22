@@ -7,11 +7,11 @@ on:
   workflow_call:
     inputs:
       stage:
-        description: issue, review or respond
+        description: issue, review, respond or update
         type: string
         required: true
       number:
-        description: The issue (stage issue) or the pull request (stages review and respond)
+        description: The issue (stage issue) or the pull request (the other stages)
         type: number
         required: true
       app-client-id:
@@ -119,8 +119,8 @@ jobs:
       - name: Check the call
         run: |
           case "$STAGE" in
-            issue|review|respond) ;;
-            *) echo "::error::There is no stage \"$STAGE\": issue, review or respond."; exit 64 ;;
+            issue|review|respond|update) ;;
+            *) echo "::error::There is no stage \"$STAGE\": issue, review, respond or update."; exit 64 ;;
           esac
 
       # The run's only identity on GitHub. A review gets a token that cannot push; no stage gets one that can

@@ -271,6 +271,8 @@ The factory's stages and the workflow that runs them:
 - Open: a self-hosted runner (the secret scrub hides `CLAUDE_CONFIG_DIR` from the hooks); a pull request stage
   loads the project settings of the branch it checks out.
 - Review: my own.
+- Stage `update` and `.github/workflows/factory-conflicts.yml`: after a push to the default branch, the app's pull
+  requests that conflict with it are merged up to date by a run, so a review of them is answered again.
 - A person's review started no run: the caller asked `author_association`, which is not `MEMBER` for a private
   membership. The workflow now asks the repository whether the actor can push (`may-start.sh`, job `gate`).
   Also found: a pull request that conflicts with the default branch starts no workflow at all.

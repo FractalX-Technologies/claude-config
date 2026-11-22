@@ -82,9 +82,9 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
   default branch with another name), so the first lock is the server's: a ruleset on the default branch, and a
   token for the run that can open a pull request and nothing more.
 - `plugins/factory/run.sh <stage> <number>` runs one stage in a checkout: `issue` (an issue to a draft pull request,
-  or a comment that says what blocks), `review` (one comment review, with no edit tool) and `respond` (a reviewed
-  pull request to changes on its branch and one reply). Only `review` may post a review, since a review is what
-  starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
+  or a comment that says what blocks), `review` (one comment review, with no edit tool), `respond` (a reviewed
+  pull request to changes on its branch and one reply) and `update` (a pull request in conflict merged up to date
+  with its base, never rebased). Only `review` may post a review, since a review is what starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
   (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
 - `factory-wait-ci <number>` is on the run's `PATH`: it waits for a pull request's checks, the factory's own runs
   aside, since the run that waits is one of them.
@@ -135,6 +135,30 @@ jobs:
   only for the app itself or a person who can push; anyone else's run is skipped. `author_association` is not
   used for this: GitHub calls a member whose membership is private a contributor. Runs on pull requests from
   forks are refused.
+- **Conflicts**: GitHub starts no workflow for a pull request that conflicts with its base, so a review of one
+  gets no answer. The `update` stage merges the base into such a pull request and resolves the conflicts;
+  `.github/workflows/factory-conflicts.yml` lists the app's pull requests that need it (output `numbers`). A caller
+  runs both after a push to the default branch:
+
+  ```yaml
+  conflicts:
+    if: github.event_name == 'push'
+    uses: <owner>/claude-config/.github/workflows/factory-conflicts.yml@main
+    with: { app-client-id: "${{ vars.FACTORY_APP_CLIENT_ID }}", kit-repository: <owner>/claude-config }
+    secrets: { app-private-key: "${{ secrets.FACTORY_APP_PRIVATE_KEY }}" }
+  update:
+    needs: conflicts
+    if: needs.conflicts.outputs.numbers != '[]'
+    strategy:
+      fail-fast: false
+      matrix: { number: "${{ fromJSON(needs.conflicts.outputs.numbers) }}" }
+    uses: <owner>/claude-config/.github/workflows/factory.yml@main
+    with: { stage: update, number: "${{ matrix.number }}", app-client-id: "…", kit-repository: <owner>/claude-config }
+    secrets: { app-private-key: "…", anthropic-api-key: "…" }
+  ```
+
+  Where the base changed a workflow file, the app may not push the merge (it has no Workflows permission, on
+  purpose): the run says so on the pull request, and a person presses "Update branch".
 - **Asking for a change** is a review on the pull request, of type comment or request changes, with or without
   comments on lines: the respond stage checks each request, then changes the branch or answers with the evidence.
   A plain comment starts nothing, and neither does a review on a pull request that conflicts with the default

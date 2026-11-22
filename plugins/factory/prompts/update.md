@@ -1,0 +1,3 @@
+You were started by a workflow, because pull request #{{number}} of this repository conflicts with its base branch. Nobody is watching this run. The pull request's branch is checked out.
+
+Bring the branch up to date: `git merge origin/<base branch>`, resolve each conflict so that both changes keep what they were for, run the tests, commit the merge and push. Never rebase and never force-push: the branch's history stays as it is. Then say in one comment on the pull request what conflicted and how you resolved it. If the two changes cannot both stand, or the push is refused, leave the branch as it was, comment with what a person has to decide or do, and stop.

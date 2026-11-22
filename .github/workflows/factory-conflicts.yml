@@ -1,0 +1,64 @@
+# Lists the app's open pull requests that conflict with their base branch, for a repository's own workflow to hand
+# to the update stage after a push to the default branch (README › Factory in GitHub Actions). GitHub starts no
+# workflow for a pull request in conflict, so a review of one would get no answer until someone resolved it.
+# No model runs here and nothing of the repository is checked out.
+name: Factory conflicts
+
+on:
+  workflow_call:
+    inputs:
+      app-client-id:
+        description: Client ID of the GitHub App whose pull requests are looked at
+        type: string
+        required: true
+      kit-repository:
+        description: This config repository, as owner/name
+        type: string
+        required: true
+      kit-ref:
+        description: The branch, tag or commit of the config to use
+        type: string
+        default: main
+    secrets:
+      app-private-key:
+        required: true
+    outputs:
+      numbers:
+        description: The pull requests in conflict, as a JSON list of numbers
+        value: ${{ jobs.list.outputs.numbers }}
+
+permissions: {}
+
+jobs:
+  list:
+    name: Pull requests in conflict
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      numbers: ${{ steps.list.outputs.numbers }}
+    steps:
+      - name: Token to read with
+        id: app
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        with:
+          client-id: ${{ inputs.app-client-id }}
+          private-key: ${{ secrets.app-private-key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-pull-requests: read
+
+      - name: Ask GitHub about each one
+        id: list
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+          KIT_REPOSITORY: ${{ inputs.kit-repository }}
+          KIT_REF: ${{ inputs.kit-ref }}
+        run: |
+          git init -q "$RUNNER_TEMP/kit"
+          git -C "$RUNNER_TEMP/kit" fetch -q --depth 1 "$GITHUB_SERVER_URL/$KIT_REPOSITORY" "$KIT_REF"
+          git -C "$RUNNER_TEMP/kit" checkout -q FETCH_HEAD
+          numbers=$("$RUNNER_TEMP/kit/plugins/factory/conflicting.sh" "$SLUG")
+          echo "numbers=$numbers" >> "$GITHUB_OUTPUT"
+          echo "In conflict: $numbers"

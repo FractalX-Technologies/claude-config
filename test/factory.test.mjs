@@ -14,14 +14,16 @@ const RUN = path.join(KIT, 'plugins/factory/run.sh');
 const BOARD = path.join(KIT, 'plugins/factory/board.sh');
 const WAIT = path.join(KIT, 'plugins/factory/bin/factory-wait-ci');
 const MAY_START = path.join(KIT, 'plugins/factory/may-start.sh');
+const CONFLICTING = path.join(KIT, 'plugins/factory/conflicting.sh');
 const WORKFLOW = path.join(KIT, '.github/workflows/factory.yml');
 const BOARD_WORKFLOW = path.join(KIT, '.github/workflows/factory-board.yml');
+const CONFLICTS_WORKFLOW = path.join(KIT, '.github/workflows/factory-conflicts.yml');
 
 const RESULT = { type: 'result', subtype: 'success', is_error: false, result: 'Opened draft pull request #13.', num_turns: 4, total_cost_usd: 0.1234, duration_ms: 21000 };
 const ISSUE = { number: 12, title: 'slugify drops accents', author: { login: 'someone' }, body: 'First line.\n\nExpected: `creme-brulee`.' };
 
 // A folder with a `claude` that records its arguments and prints a transcript, and a `gh` that answers from files.
-function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [], permissions = {} } = {}) {
+function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [], permissions = {}, prs = {} } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'factory-'));
   mkdirSync(path.join(dir, 'bin'));
   mkdirSync(path.join(dir, 'work'));
@@ -48,6 +50,13 @@ case "$1 $2" in
     [ -f "$f" ] || f=${JSON.stringify(path.join(dir, 'checks-last.json'))}
     [ -f "$f" ] || { echo "no checks reported on the branch" >&2; exit 1; }
     cat "$f"; exit 8 ;;
+  "pr list") cat ${JSON.stringify(path.join(dir, 'prs.json'))} ;;
+  "pr view")
+    n=$(cat ${JSON.stringify(path.join(dir, 'view'))}-$3.count 2>/dev/null || echo 0)
+    echo $((n + 1)) > ${JSON.stringify(path.join(dir, 'view'))}-$3.count
+    f=${JSON.stringify(path.join(dir, 'mergeable'))}-$3-$n.json
+    [ -f "$f" ] || f=${JSON.stringify(path.join(dir, 'mergeable'))}-$3-last.json
+    cat "$f" ;;
   "api repos/"*)
     f=${JSON.stringify(path.join(dir, 'permission'))}-$(basename "$(dirname "$2")")
     [ -f "$f" ] || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
@@ -61,6 +70,11 @@ esac
   writeFileSync(path.join(dir, 'issue.json'), JSON.stringify(issue));
   writeFileSync(path.join(dir, 'items.json'), JSON.stringify({ items }));
   writeFileSync(path.join(dir, 'fields.json'), JSON.stringify({ fields }));
+  // The app's open pull requests, and what GitHub says of each one's merge, call after call; the last answer repeats.
+  writeFileSync(path.join(dir, 'prs.json'), JSON.stringify(Object.keys(prs).map((n) => ({ number: Number(n) }))));
+  for (const [n, answers] of Object.entries(prs)) {
+    answers.forEach((mergeable, i) => writeFileSync(path.join(dir, `mergeable-${n}-${i === answers.length - 1 ? 'last' : i}.json`), JSON.stringify({ mergeable })));
+  }
   // What the repository says a person may do; a login with no file is one GitHub does not know.
   for (const [login, permission] of Object.entries(permissions)) writeFileSync(path.join(dir, `permission-${login}`), `${permission}\n`);
   // What `gh pr checks` answers, call after call; the last answer repeats.
@@ -107,7 +121,7 @@ test('text from an issue is never run: it reaches the prompt as it was written',
 });
 
 test('a stage that changes code may edit; the review stage may not, and neither asks anyone', () => {
-  for (const stage of ['issue', 'respond']) {
+  for (const stage of ['issue', 'respond', 'update']) {
     const l = lab();
     assert.equal(l.run(RUN, [stage, '12']).status, 0);
     assert.deepEqual(l.flag('--allowedTools'), ['Bash', 'Read', 'Edit', 'Write', 'Glob', 'Grep'], stage);
@@ -300,7 +314,7 @@ function scripts(yaml) {
 }
 
 test('the workflow\'s scripts take every value from the environment, never from an expression', () => {
-  for (const file of [WORKFLOW, BOARD_WORKFLOW]) {
+  for (const file of [WORKFLOW, BOARD_WORKFLOW, CONFLICTS_WORKFLOW]) {
     assert.ok(scripts(workflow(file)).length > 200, `${file}: the scripts were not found`);
     assert.doesNotMatch(scripts(workflow(file)), /\$\{\{/, `${file}: an expression inside a script runs whatever text it expands to`);
   }
@@ -310,7 +324,7 @@ test('the workflow\'s scripts take every value from the environment, never from 
 });
 
 test('every action is pinned to a commit, and the workflow is only ever called', () => {
-  for (const [file, count] of [[WORKFLOW, 6], [BOARD_WORKFLOW, 1]]) {
+  for (const [file, count] of [[WORKFLOW, 6], [BOARD_WORKFLOW, 1], [CONFLICTS_WORKFLOW, 1]]) {
     const uses = [...workflow(file).matchAll(/^\s*(?:- )?uses:\s*(\S+)(.*)$/gm)];
     assert.equal(uses.length, count, file);
     for (const [, action, rest] of uses) {
@@ -378,4 +392,49 @@ test('the board workflow moves a card and can do nothing else', () => {
   assert.doesNotMatch(yaml, /permission-(contents|workflows|administration|actions)|permission-(issues|pull-requests): write/);
   assert.doesNotMatch(yaml, /ANTHROPIC|CLAUDE|actions\/checkout/, 'no model and no checkout: nothing of the repository runs here');
   assert.match(scripts(yaml), /plugins\/factory\/board\.sh" "\$OWNER" "\$BOARD" "\$ISSUE_URL" "\$STATUS"/);
+});
+
+// GitHub starts no workflow for a pull request that conflicts with its base: a review of it would get no answer.
+// So after every push to the default branch the factory's own pull requests are looked at, and the ones that
+// conflict are brought up to date by a run.
+test('the update stage is told to merge the base branch in, and may never rewrite the branch', () => {
+  const l = lab();
+  const r = l.run(RUN, ['update', '16']);
+  assert.equal(r.status, 0, r.stderr);
+  const prompt = l.prompt();
+  assert.match(prompt, /Nobody is watching this run/);
+  assert.match(prompt, /pull request #16/);
+  assert.match(prompt, /conflicts/);
+  assert.match(prompt, /git merge/);
+  assert.doesNotMatch(prompt, /\{\{/);
+  assert.deepEqual(l.gh().filter((line) => line.startsWith('issue view')), [], 'there is no issue to quote');
+  for (const pattern of ['Bash(git rebase*)', 'Bash(git push*--force*)', 'Bash(git push* -f*)', 'Bash(gh pr review*)']) {
+    assert.ok(l.flag('--disallowedTools').includes(pattern), `${pattern}: ${l.flag('--disallowedTools').join(' ')}`);
+  }
+});
+
+test('the factory\'s pull requests that conflict are listed, once GitHub has made up its mind', () => {
+  const env = { GH_REPO: 'o/r', FACTORY_MERGEABLE_POLL: '0', FACTORY_MERGEABLE_TRIES: '3' };
+  const l = lab({ prs: { 16: ['UNKNOWN', 'CONFLICTING'], 18: ['CONFLICTING'], 20: ['MERGEABLE'], 21: ['UNKNOWN'] } });
+  const r = l.run(CONFLICTING, ['factory-app'], env);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(JSON.parse(r.stdout), [16, 18]);
+  assert.match(r.stderr, /#21/, 'a pull request GitHub never answered for is named, not guessed');
+  assert.ok(l.gh().some((line) => /^pr list .*--app factory-app\b.*--state open/.test(line)), l.gh()[0]);
+  assert.equal(l.gh().filter((line) => line.startsWith('pr view 21 ')).length, 3);
+
+  const none = lab({ prs: { 20: ['MERGEABLE'] } });
+  assert.equal(none.run(CONFLICTING, ['factory-app'], env).stdout.trim(), '[]');
+  assert.equal(lab().run(CONFLICTING, ['factory-app'], env).stdout.trim(), '[]', 'no open pull request at all');
+  for (const args of [[], ['a', 'b']]) assert.equal(lab().run(CONFLICTING, args, env).status, 64, JSON.stringify(args));
+});
+
+test('the workflow that lists them can read pull requests and nothing else', () => {
+  const yaml = workflow(CONFLICTS_WORKFLOW);
+  assert.match(yaml, /^permissions: \{\}$/m);
+  assert.match(yaml, /permission-pull-requests: read/);
+  assert.doesNotMatch(yaml, /permission-(?!pull-requests: read)|ANTHROPIC|CLAUDE|actions\/checkout/);
+  assert.match(yaml, /outputs:\n      numbers:/);
+  assert.match(scripts(yaml), /plugins\/factory\/conflicting\.sh" "\$SLUG"/);
+  assert.match(workflow(), /issue\|review\|respond\|update\)/, 'the stage workflow knows the stage');
 });

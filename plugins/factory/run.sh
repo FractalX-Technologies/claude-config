@@ -8,10 +8,10 @@
 set -euo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd -P)
-usage() { echo "usage: run.sh issue|review|respond <number>" >&2; exit 64; }
+usage() { echo "usage: run.sh issue|review|respond|update <number>" >&2; exit 64; }
 [ $# -eq 2 ] || usage
 stage=$1 number=$2
-case "$stage" in issue|review|respond) ;; *) usage ;; esac
+case "$stage" in issue|review|respond|update) ;; *) usage ;; esac
 [[ "$number" =~ ^[1-9][0-9]*$ ]] || usage
 
 out=${FACTORY_OUT:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/factory}
@@ -34,6 +34,8 @@ fi
 # real lock. No other stage may post a review: a review starts the respond stage, which would then start itself.
 tools=(Bash Read Edit Write Glob Grep) mode=acceptEdits never=('Bash(gh pr review*)')
 if [ "$stage" = review ]; then tools=(Bash Read Glob Grep) mode=default never=('Bash(git commit*)' 'Bash(git push*)'); fi
+# Bringing a branch up to date is a merge: the commits people reviewed stay the commits on the branch.
+if [ "$stage" = update ]; then never+=('Bash(git rebase*)' 'Bash(git push*--force*)' 'Bash(git push* -f*)'); fi
 
 # The factory's own commands (factory-wait-ci) are the run's to call.
 export PATH="$here/bin:$PATH"
