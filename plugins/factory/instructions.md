@@ -52,6 +52,9 @@ result later. It adds to *How work is done*.
   each finding with its file and line in the body: `gh pr review <number> --comment --body-file <file>`. Never
   approve and never request changes: that verdict is a person's.
 - Comments attached to lines need a `gh api` write, which the settings deny: the one body is the whole review.
+- A QA run tests a pull request against what its issue asks for, and changes nothing: the whole suite, then each
+  thing the issue asks for, tried by hand with throwaway files outside the checkout. It ends on `QA: pass` or
+  `QA: fail`, which is posted for it.
 - A run started by a comment answers a question and changes nothing; a request it handles as it would a review's,
   and it replies once.
 - A run that answers a review reads every review and the comments on lines, which `gh pr view` leaves out:

@@ -15,6 +15,7 @@ const BOARD = path.join(KIT, 'plugins/factory/board.sh');
 const WAIT = path.join(KIT, 'plugins/factory/bin/factory-wait-ci');
 const MAY_START = path.join(KIT, 'plugins/factory/may-start.sh');
 const CONFLICTING = path.join(KIT, 'plugins/factory/conflicting.sh');
+const CARDS = path.join(KIT, 'plugins/factory/move-cards.sh');
 const WORKFLOW = path.join(KIT, '.github/workflows/factory.yml');
 const BOARD_WORKFLOW = path.join(KIT, '.github/workflows/factory-board.yml');
 const CONFLICTS_WORKFLOW = path.join(KIT, '.github/workflows/factory-conflicts.yml');
@@ -51,6 +52,7 @@ case "$1 $2" in
     [ -f "$f" ] || { echo "no checks reported on the branch" >&2; exit 1; }
     cat "$f"; exit 8 ;;
   "pr comment") cp "$5" ${JSON.stringify(path.join(dir, 'comment.md'))} ;;
+  "pr review") cp "$6" ${JSON.stringify(path.join(dir, 'review.md'))} ;;
   "pr list") cat ${JSON.stringify(path.join(dir, 'prs.json'))} ;;
   "pr view")
     n=$(cat ${JSON.stringify(path.join(dir, 'view'))}-$3.count 2>/dev/null || echo 0)
@@ -78,7 +80,7 @@ esac
   for (const [n, answers] of Object.entries(prs)) {
     answers.forEach((answer, i) => writeFileSync(
       path.join(dir, `mergeable-${n}-${i === answers.length - 1 ? 'last' : i}.json`),
-      JSON.stringify({ baseRefName: 'main', headRefOid: `head-${n}`, comments: [], ...(typeof answer === 'string' ? { mergeable: answer } : answer) }),
+      JSON.stringify({ baseRefName: 'main', headRefOid: `head-${n}`, comments: [], reviews: [], closingIssuesReferences: [], ...(typeof answer === 'string' ? { mergeable: answer } : answer) }),
     ));
   }
   // Comments people wrote, by id.
@@ -347,7 +349,7 @@ test('every action is pinned to a commit, and the workflow is only ever called',
 test('the run\'s token can open a pull request and nothing more: a review cannot push, and nothing writes a workflow', () => {
   const yaml = workflow();
   assert.match(yaml, /^permissions:\n  contents: read\n/m, 'the job\'s own token only reads');
-  assert.match(yaml, /permission-contents: \$\{\{ inputs\.stage == 'review' && 'read' \|\| 'write' \}\}/);
+  assert.match(yaml, /permission-contents: \$\{\{ \(inputs\.stage == 'review' \|\| inputs\.stage == 'qa'\) && 'read' \|\| 'write' \}\}/);
   assert.match(yaml, /permission-pull-requests: write/);
   assert.doesNotMatch(yaml, /permission-(workflows|administration|actions: write|organization-projects: write[\s\S]*permission-contents)/);
   assert.match(yaml, /CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "?1"?/, 'the model\'s commands must not see the API key');
@@ -548,7 +550,129 @@ test('a comment starts a run only when a person wrote it and it asks the factory
 
 test('the workflow hands the comment to the stage and checks out the default branch for an issue', () => {
   const yaml = workflow();
-  assert.match(yaml, /issue\|review\|respond\|update\|comment\)/);
+  assert.match(yaml, /issue\|review\|respond\|update\|comment[|)]/);
   assert.match(yaml, /\n      comment:\n        description: [^\n]+\n        type: string\n/, 'an id is too long for a number');
   assert.match(scripts(yaml), /run\.sh" "\$STAGE" "\$NUMBER" \$\{COMMENT:\+"\$COMMENT"\}/);
+});
+
+// ── the qa stage ────────────────────────────────────────────────────────────────────────────────────────────────
+// QA tests a pull request against the issue it closes before a person reviews it. Its last line is the verdict: a
+// pass marks the pull request ready for that person, a failure is a review, which starts the respond stage.
+const ISSUE_12 = 'https://github.com/acme/widgets/issues/12';
+const qaPr = (extra = {}) => ({ 18: [{ headRefOid: 'abc123', closingIssuesReferences: [{ url: ISSUE_12 }], ...extra }] });
+const qaSays = (text, extra = {}) => ({ ...RESULT, result: text, ...extra });
+const verdict = (l) => (existsSync(path.join(l.dir, 'out/qa-18.verdict')) ? readFileSync(path.join(l.dir, 'out/qa-18.verdict'), 'utf8').trim() : '');
+const posted = (l, name) => (existsSync(path.join(l.dir, name)) ? readFileSync(path.join(l.dir, name), 'utf8') : '');
+
+test('the qa stage tests the pull request against what its issue asks, and may change nothing', () => {
+  const l = lab({ prs: qaPr(), result: qaSays('All good.\n\nQA: pass') });
+  const r = l.run(RUN, ['qa', '18']);
+  assert.equal(r.status, 0, r.stderr);
+  const prompt = l.prompt();
+  assert.match(prompt, /pull request #18/);
+  assert.match(prompt, /Nobody is watching this run/);
+  assert.match(prompt, /closingIssuesReferences/);
+  assert.match(prompt, /whole test suite/);
+  assert.match(prompt, /`QA: pass` or `QA: fail`/);
+  assert.doesNotMatch(prompt, /\{\{/);
+  assert.deepEqual(l.flag('--allowedTools'), ['Bash', 'Read', 'Glob', 'Grep']);
+  assert.deepEqual(l.flag('--permission-mode'), ['default']);
+  assert.deepEqual(l.flag('--disallowedTools'), ['Bash(git commit*)', 'Bash(git push*)', 'Bash(gh pr review*)', 'Bash(gh pr comment*)', 'Bash(gh pr ready*)']);
+});
+
+test('a qa run that passes says so on the pull request and marks it ready for a person', () => {
+  const l = lab({ prs: qaPr(), result: qaSays('- `npm test`: 19 pass\n\nQA: pass\n') });
+  assert.equal(l.run(RUN, ['qa', '18']).status, 0);
+  assert.equal(verdict(l), 'pass');
+  assert.match(posted(l, 'comment.md'), /19 pass/);
+  assert.match(posted(l, 'comment.md'), /<!-- factory:qa pass abc123 -->/);
+  assert.ok(l.gh().includes('pr ready 18'), l.gh().join('\n'));
+  assert.ok(!l.gh().some((call) => call.startsWith('pr review')));
+});
+
+test('a qa run that fails posts what failed as a review, which the respond stage answers', () => {
+  const l = lab({ prs: qaPr(), result: qaSays("`wordCount('')` returns 1, the issue asks for 0.\n\nQA: fail") });
+  assert.equal(l.run(RUN, ['qa', '18']).status, 0);
+  assert.equal(verdict(l), 'fail');
+  assert.ok(l.gh().some((call) => /^pr review 18 --comment --body-file /.test(call)), l.gh().join('\n'));
+  assert.match(posted(l, 'review.md'), /returns 1/);
+  assert.match(posted(l, 'review.md'), /<!-- factory:qa fail abc123 -->/);
+  assert.ok(!l.gh().some((call) => call.startsWith('pr ready')));
+});
+
+test('a qa run whose last line is no verdict, or that failed, is neither a pass nor a fail', () => {
+  for (const [result, exit] of [[qaSays('QA: pass\n\nThen the suite hung.'), 0], [qaSays('QA: pass', { is_error: true, subtype: 'error_max_budget_usd' }), 1]]) {
+    const l = lab({ prs: qaPr(), result, exit });
+    l.run(RUN, ['qa', '18']);
+    assert.equal(verdict(l), 'none', JSON.stringify(result));
+    assert.match(posted(l, 'comment.md'), /without a verdict/);
+    assert.ok(!l.gh().some((call) => call.startsWith('pr ready') || call.startsWith('pr review')), l.gh().join('\n'));
+  }
+});
+
+test('qa stops for a person after three failures in a row, and a pass starts the count again', () => {
+  const fail = (minute) => ({ body: `Broken.\n\n<!-- factory:qa fail h${minute} -->`, submittedAt: `2026-11-22T10:${minute}:00Z` });
+  const pass = (minute) => ({ body: `Fine.\n\n<!-- factory:qa pass h${minute} -->`, createdAt: `2026-11-22T10:${minute}:00Z` });
+  const person = { body: 'Please rename it.', submittedAt: '2026-11-22T10:15:00Z' };
+  const stuck = lab({ prs: qaPr({ reviews: [fail('11'), person, fail('12'), fail('13')], comments: [pass('10')] }) });
+  assert.equal(stuck.run(RUN, ['qa', '18']).status, 0);
+  assert.ok(!existsSync(path.join(stuck.dir, 'claude-args.json')), 'a fourth try was started');
+  assert.equal(verdict(stuck), 'stopped');
+  assert.match(posted(stuck, 'comment.md'), /3 times in a row/);
+  assert.ok(!stuck.gh().some((call) => call.startsWith('pr review')), 'a review would start the respond stage once more');
+  const fresh = lab({ prs: qaPr({ reviews: [fail('11'), fail('12'), fail('14'), fail('16')], comments: [pass('13')] }), result: qaSays('QA: pass') });
+  assert.equal(fresh.run(RUN, ['qa', '18']).status, 0);
+  assert.ok(existsSync(path.join(fresh.dir, 'claude-args.json')), 'two failures since the last pass are not three');
+});
+
+// ── move-cards.sh ───────────────────────────────────────────────────────────────────────────────────────────────
+// A card follows its issue: In progress while the factory works, Ready for QA once a respond run has answered, Ready
+// for HR once QA passes, back to In progress when QA fails, Blocked when a person has to step in.
+const COLUMNS = [{ id: 'STATUS', name: 'Status', options: ['In progress', 'Ready for QA', 'Ready for HR', 'Blocked'].map((name) => ({ id: name, name })) }];
+
+function cardsAt(stage, number, moment, { qa, linked = [] } = {}) {
+  const l = lab({
+    fields: COLUMNS,
+    items: [{ id: 'CARD-12', content: { url: ISSUE_12 } }, { id: 'CARD-13', content: { url: `${ISSUE_12.slice(0, -2)}13` } }],
+    issue: { ...ISSUE, url: ISSUE_12, closedByPullRequestsReferences: linked },
+    prs: { 18: [{ closingIssuesReferences: [{ url: ISSUE_12 }, { url: `${ISSUE_12.slice(0, -2)}13` }] }] },
+  });
+  if (qa) { mkdirSync(path.join(l.dir, 'out'), { recursive: true }); writeFileSync(path.join(l.dir, 'out/qa-18.verdict'), `${qa}\n`); }
+  const r = l.run(CARDS, ['acme', '1', stage, String(number), moment]);
+  assert.equal(r.status, 0, `${stage} ${moment}: ${r.stderr}`);
+  return l.gh().filter((call) => call.startsWith('project item-edit'))
+    .map((call) => `${call.match(/--id (\S+)/)[1]}=${call.match(/--single-select-option-id (.+)$/)[1]}`);
+}
+
+test('the cards of a pull request\'s issues follow the respond and qa runs', () => {
+  const both = (status) => [`CARD-12=${status}`, `CARD-13=${status}`];
+  assert.deepEqual(cardsAt('respond', 18, 'start'), both('In progress'));
+  assert.deepEqual(cardsAt('respond', 18, 'success'), both('Ready for QA'));
+  assert.deepEqual(cardsAt('respond', 18, 'failure'), [], 'a respond run that failed leaves the card where a person sees it working');
+  assert.deepEqual(cardsAt('qa', 18, 'start'), []);
+  assert.deepEqual(cardsAt('qa', 18, 'success', { qa: 'pass' }), both('Ready for HR'));
+  assert.deepEqual(cardsAt('qa', 18, 'success', { qa: 'fail' }), both('In progress'));
+  for (const qa of ['none', 'stopped', undefined]) assert.deepEqual(cardsAt('qa', 18, 'failure', { qa }), both('Blocked'), String(qa));
+  for (const stage of ['review', 'update', 'comment']) {
+    for (const moment of ['start', 'success']) assert.deepEqual(cardsAt(stage, 18, moment), [], `${stage} ${moment}`);
+  }
+});
+
+test('an issue run puts its card in progress, and blocks it when no pull request came of it', () => {
+  assert.deepEqual(cardsAt('issue', 12, 'start'), ['CARD-12=In progress']);
+  assert.deepEqual(cardsAt('issue', 12, 'success'), ['CARD-12=Blocked']);
+  assert.deepEqual(cardsAt('issue', 12, 'success', { linked: [{ number: 18 }] }), [], 'the respond and qa runs move it from here');
+  for (const args of [[], ['acme', '1', 'issue', '12'], ['acme', '1', 'issue', '12', 'later'], ['acme', '1', 'deploy', '12', 'start'], ['acme', '1', 'issue', 'x', 'start']]) {
+    assert.equal(lab().run(CARDS, args).status, 64, JSON.stringify(args));
+  }
+});
+
+test('the workflow runs qa without write access to the code, and moves the cards when a run starts and ends', () => {
+  const yaml = workflow();
+  assert.match(yaml, /issue\|review\|respond\|update\|comment\|qa\)/);
+  assert.match(scripts(yaml), /plugins\/factory\/move-cards\.sh" "\$OWNER" "\$BOARD" "\$STAGE" "\$NUMBER" start/);
+  assert.match(scripts(yaml), /plugins\/factory\/move-cards\.sh" "\$OWNER" "\$BOARD" "\$STAGE" "\$NUMBER" "\$OUTCOME"/);
+  assert.match(yaml, /OUTCOME: \$\{\{ steps\.stage\.outcome \}\}/);
+  assert.match(yaml, /if: inputs\.board > 0 && contains\(fromJSON\('\["issue", "respond", "qa"\]'\), inputs\.stage\)/);
+  assert.doesNotMatch(yaml, /In review/);
 });

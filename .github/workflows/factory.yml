@@ -7,7 +7,7 @@ on:
   workflow_call:
     inputs:
       stage:
-        description: issue, review, respond, update or comment
+        description: issue, review, respond, update, comment or qa
         type: string
         required: true
       number:
@@ -119,13 +119,12 @@ jobs:
       COMMENT: ${{ inputs.comment }}
       OWNER: ${{ github.repository_owner }}
       GH_REPO: ${{ github.repository }}
-      ISSUE_URL: ${{ github.server_url }}/${{ github.repository }}/issues/${{ inputs.number }}
     steps:
       - name: Check the call
         run: |
           case "$STAGE" in
-            issue|review|respond|update|comment) ;;
-            *) echo "::error::There is no stage \"$STAGE\": issue, review, respond, update or comment."; exit 64 ;;
+            issue|review|respond|update|comment|qa) ;;
+            *) echo "::error::There is no stage \"$STAGE\": issue, review, respond, update, comment or qa."; exit 64 ;;
           esac
           if [ "$STAGE" = comment ] && ! [[ "$COMMENT" =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::Stage comment needs the id of the comment (input comment)."; exit 64
@@ -141,7 +140,7 @@ jobs:
           private-key: ${{ secrets.app-private-key }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-          permission-contents: ${{ inputs.stage == 'review' && 'read' || 'write' }}
+          permission-contents: ${{ (inputs.stage == 'review' || inputs.stage == 'qa') && 'read' || 'write' }}
           permission-pull-requests: write
           permission-issues: write
           permission-checks: read
@@ -226,7 +225,7 @@ jobs:
       # The board is the workflow's to move, with a token of its own: the run's token cannot touch a project.
       - name: Token for the board
         id: board
-        if: inputs.board > 0 && (inputs.stage == 'issue' || inputs.stage == 'comment')
+        if: inputs.board > 0 && contains(fromJSON('["issue", "respond", "qa"]'), inputs.stage)
         continue-on-error: true
         uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
         with:
@@ -238,18 +237,19 @@ jobs:
           permission-issues: read
           permission-pull-requests: read
 
-      - name: Board, in progress
-        if: steps.board.outputs.token && inputs.stage == 'issue'
+      - name: Board, when the run starts
+        if: steps.board.outputs.token
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.board.outputs.token }}
           BOARD: ${{ inputs.board }}
         run: |
-          "$RUNNER_TEMP/kit/plugins/factory/board.sh" "$OWNER" "$BOARD" "$ISSUE_URL" "In progress"
+          "$RUNNER_TEMP/kit/plugins/factory/move-cards.sh" "$OWNER" "$BOARD" "$STAGE" "$NUMBER" start
 
       # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB keeps the Claude credential out of the commands the model runs; the
       # GitHub token stays, since `gh` and `git push` need it, which is why that token is the narrow one above.
       - name: Run the stage
+        id: stage
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           ANTHROPIC_API_KEY: ${{ secrets.anthropic-api-key }}
@@ -268,17 +268,16 @@ jobs:
           fi
           "$RUNNER_TEMP/kit/plugins/factory/run.sh" "$STAGE" "$NUMBER" ${COMMENT:+"$COMMENT"}
 
-      - name: Board, where the issue landed
+      - name: Board, when the run ends
         if: always() && steps.board.outputs.token
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.board.outputs.token }}
           BOARD: ${{ inputs.board }}
+          OUTCOME: ${{ steps.stage.outcome }}
+          FACTORY_OUT: ${{ runner.temp }}/factory
         run: |
-          linked=$(gh issue view "$NUMBER" --json closedByPullRequestsReferences --jq '.closedByPullRequestsReferences | length')
-          # A comment may have been a question: only an issue run that opened nothing is blocked.
-          if [ "$linked" -gt 0 ]; then status="In review"; elif [ "$STAGE" = issue ]; then status="Blocked"; else exit 0; fi
-          "$RUNNER_TEMP/kit/plugins/factory/board.sh" "$OWNER" "$BOARD" "$ISSUE_URL" "$status"
+          "$RUNNER_TEMP/kit/plugins/factory/move-cards.sh" "$OWNER" "$BOARD" "$STAGE" "$NUMBER" "$OUTCOME"
 
       # For whoever reads the job: what is in the checkout that no commit holds, the hidden stand-ins included.
       - name: What the run left in the checkout

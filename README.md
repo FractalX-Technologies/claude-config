@@ -83,8 +83,10 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
   token for the run that can open a pull request and nothing more.
 - `plugins/factory/run.sh <stage> <number>` runs one stage in a checkout: `issue` (an issue to a draft pull request,
   or a comment that says what blocks), `review` (one comment review, with no edit tool), `respond` (a reviewed
-  pull request to changes on its branch and one reply) `update` (a pull request in conflict merged up to date
-  with its base, never rebased) and `comment` (a `/factory` comment answered or carried out). Only `review` may post a review, since a review is what starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
+  pull request to changes on its branch and one reply), `update` (a pull request in conflict merged up to date
+  with its base, never rebased), `comment` (a `/factory` comment answered or carried out) and `qa` (a pull request
+  tested against its issue, with no edit tool: ready for a person, or a review of what failed). Only `review` and
+  `qa` post a review, since a review is what starts `respond`. The issue's text reaches the prompt as a quote. Each run has a spending cap
   (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
 - `factory-wait-ci <number>` is on the run's `PATH`: it waits for a pull request's checks, the factory's own runs
   aside, since the run that waits is one of them.
@@ -126,8 +128,10 @@ jobs:
   don't see it (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`).
 - **The profile** is installed into the runner's own `~/.claude`, at `kit-ref` (`main`, or a commit to pin it).
   `stacks`, `model`, `budget-usd` and `claude-code-version` are inputs.
-- **Board** (`board: <project number>`): the issue's Status becomes `In progress` when the run starts, then
-  `In review` when a pull request closes the issue, `Blocked` when none does. The project needs those three options.
+- **Board** (`board: <project number>`, on the `issue`, `respond` and `qa` jobs): a card follows its issue
+  (`plugins/factory/move-cards.sh`). `In progress` while an issue or respond run works, `Blocked` when an issue run
+  opened no pull request, `Ready for QA` when a respond run ends, then `Ready for HR` (human review) when QA passes,
+  `In progress` again when it fails, `Blocked` when it gives no verdict. The project's Status needs those options.
   What happens after a run is the caller's to report: `.github/workflows/factory-board.yml` moves a card and does
   nothing else (`number`, `status`, `board`), for a job on `issues: closed` that sets `Done`, for one.
 - **Who starts a run**: the caller's `if:` picks the event (a label, the app's pull request, a review that is not
@@ -167,6 +171,11 @@ jobs:
   under `if: startsWith(github.event.comment.body, '/factory') && github.event.comment.user.type != 'Bot'`.
   GitHub runs that event from the default branch, so it works on a pull request in conflict too. A bot's comment
   and one that does not start with the command start nothing, whatever the caller's `if:` says.
+- **QA** runs after every respond run: a caller job `qa` with `needs: respond` and `stage: qa`, the pull request's
+  number. It tests the change against the issue it closes, and changes nothing. Its last line is the verdict, which
+  `run.sh` posts: a pass is a comment and marks the pull request ready for review; a failure is a review, so the
+  respond stage fixes it and QA runs again. After three failures in a row (`FACTORY_QA_ROUNDS`) it stops and says a
+  person has to look. A person's review of a pull request in `Ready for HR` starts the same respond → QA loop.
 - **Asking for a change** is a review on the pull request, of type comment or request changes, with or without
   comments on lines: the respond stage checks each request, then changes the branch or answers with the evidence.
   A plain comment starts nothing, and neither does a review on a pull request that conflicts with the default
