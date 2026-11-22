@@ -33,6 +33,11 @@ platform sets an app's settings on its container.
    which only downloads the providers. The pull request's plan is the test against Azure.
 10. The portal is for reading. A change made there is drift the next apply reverts: write it in code, with an `import`
     block for anything created there.
+11. **Dev is on only while something is tried there**, to save its cost. Its database is stopped, never deleted, and
+    its apps scale to zero. A merge's release starts the database before it migrates; production's promotion stops
+    it once production runs dev's version; a scheduled run stops it again (Azure starts a server stopped for 7 days);
+    a manual run starts it for a test with no merge. The deployer may start and stop that one server, nothing more.
+    Production never stops. A new project's dev ships parked the same way.
 
 ## More detail
 
