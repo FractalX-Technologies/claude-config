@@ -42,10 +42,10 @@ if [ "$stage" = update ]; then never+=('Bash(git rebase*)' 'Bash(git push*--forc
 if [ "$stage" = update ]; then
   pr=$(gh pr view "$number" --json baseRefName,headRefOid)
   base=$(jq -r '.baseRefName' <<< "$pr") head=$(jq -r '.headRefOid' <<< "$pr")
-  if git fetch -q origin "$base" 2> /dev/null; then
-    git merge --no-commit --no-ff "origin/$base" > /dev/null 2>&1 || true # it stops at the conflicts: that is the task
-  else
-    echo "run.sh: $base could not be fetched, so no merge was started." >&2
+  # A merge that stops at its conflicts is the task; one that did not start at all is said, with git's reason.
+  if ! said=$(git fetch -q origin "$base" 2>&1 && git merge --no-commit --no-ff "origin/$base" 2>&1) \
+    && ! git rev-parse -q --verify MERGE_HEAD > /dev/null 2>&1; then
+    echo "run.sh: the merge of $base did not start: $said" >&2
   fi
 fi
 

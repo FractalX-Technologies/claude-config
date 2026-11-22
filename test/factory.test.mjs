@@ -445,9 +445,11 @@ test('the update stage starts the merge itself, and leaves the model the files i
   git('push', '-q', 'origin', 'main');
   git('checkout', '-q', 'pr');
 
-  const r = l.run(RUN, ['update', '16']);
+  // The workflow names who commits before the stage runs; a runner has no name of its own to fall back on.
+  const who = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  const r = l.run(RUN, ['update', '16'], who);
   assert.equal(r.status, 0, r.stderr);
-  assert.ok(existsSync(path.join(work, '.git/MERGE_HEAD')), 'no merge was started');
+  assert.ok(existsSync(path.join(work, '.git/MERGE_HEAD')), `no merge was started: ${r.stderr}`);
   assert.equal(git('diff', '--name-only', '--diff-filter=U').trim(), 'a.txt');
   assert.equal(readFileSync(path.join(work, '.github/workflows/ci.yml'), 'utf8'), 'v2\n', 'what did not conflict is already merged');
   assert.equal(git('rev-parse', '--abbrev-ref', 'HEAD').trim(), 'pr');
