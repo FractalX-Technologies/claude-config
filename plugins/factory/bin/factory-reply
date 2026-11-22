@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Answers a comment on a line of a pull request in its own thread; with --resolve, resolves that thread too:
+#   factory-reply [--resolve] <pull request> <comment id> <reply>
+# The run's settings deny `gh api` writes, so a run could only answer in one comment on the whole pull request.
+set -euo pipefail
+
+usage() { echo "usage: factory-reply [--resolve] <pull request> <comment id> <reply>" >&2; exit 64; }
+resolve=false
+if [ "${1:-}" = --resolve ]; then resolve=true; shift; fi
+[ $# -eq 3 ] || usage
+pr=$1 id=$2 reply=$3
+[[ "$pr" =~ ^[1-9][0-9]*$ ]] && [[ "$id" =~ ^[1-9][0-9]*$ ]] && [ -n "$reply" ] || usage
+
+# The thread is found before anything is posted: a reply that cannot be resolved as asked is an error, not half done.
+if [ "$resolve" = true ]; then
+  threads=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number="$pr" -f query='
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+        reviewThreads(first: 100) { nodes { id comments(first: 100) { nodes { databaseId } } } } } } }')
+  thread=$(jq -r --argjson id "$id" \
+    '[.data.repository.pullRequest.reviewThreads.nodes[] | select(any(.comments.nodes[]; .databaseId == $id)) | .id][0] // ""' <<< "$threads")
+  if [ -z "$thread" ]; then echo "factory-reply: comment $id is in no thread of pull request #$pr" >&2; exit 1; fi
+fi
+
+gh api "repos/{owner}/{repo}/pulls/$pr/comments/$id/replies" -f body="$reply" > /dev/null
+echo "factory-reply: answered comment $id"
+if [ "$resolve" = true ]; then
+  gh api graphql -F thread="$thread" \
+    -f query='mutation($thread: ID!) { resolveReviewThread(input: {threadId: $thread}) { thread { isResolved } } }' > /dev/null
+  echo "factory-reply: resolved its thread"
+fi

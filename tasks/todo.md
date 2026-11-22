@@ -271,6 +271,8 @@ The factory's stages and the workflow that runs them:
 - Open: a self-hosted runner (the secret scrub hides `CLAUDE_CONFIG_DIR` from the hooks); a pull request stage
   loads the project settings of the branch it checks out.
 - Review: my own.
+- `factory-reply`: the respond stage answers each comment on a line in its thread, briefly, and resolves the thread
+  when it made the change.
 - Stage `qa`, after every respond run: tests a pull request against its issue; a pass marks it ready and moves the
   card to `Ready for HR`, a failure is a review that respond answers. Stops after three failures in a row. Cards move
   by `move-cards.sh`; `In review` is gone (renamed `Ready for HR` on the board).

@@ -60,7 +60,10 @@ result later. It adds to *How work is done*.
 - A run that answers a review reads every review and the comments on lines, which `gh pr view` leaves out:
   `gh api repos/{owner}/{repo}/pulls/<number>/comments`. A request is checked before it is obeyed: run what the
   reviewer says happens. Then make each change on the pull request's branch with its test, or keep the code and
-  give the evidence, and reply once with what was done for every point: `gh pr comment <number> --body-file <file>`.
+  give the evidence. A comment on a line is answered in its thread, in one or two short sentences, with
+  `factory-reply [--resolve] <number> <comment id> "<reply>"`: `--resolve` when its change is made, never when the
+  answer is evidence (that thread stays open for the person). Then reply once, briefly, to what the reviews' own text
+  asked: `gh pr comment <number> --body-file <file>`.
 
 ## The runner
 

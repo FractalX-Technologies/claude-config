@@ -90,6 +90,9 @@ CLAUDE_CONFIG_DIR="$RUNNER_TEMP/.claude" claude -p "…"
   (`FACTORY_BUDGET_USD`, 2 by default) and leaves a summary: result, commands, refusals, cost.
 - `factory-wait-ci <number>` is on the run's `PATH`: it waits for a pull request's checks, the factory's own runs
   aside, since the run that waits is one of them.
+- `factory-reply [--resolve] <number> <comment id> <reply>` is on it too: it answers a comment on a line in its own
+  thread and, with `--resolve`, resolves that thread, the one `gh api` write a run makes. The respond stage resolves
+  a thread whose change it made, and leaves open one it answered with evidence.
 
 ### Factory in GitHub Actions
 

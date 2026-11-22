@@ -16,6 +16,7 @@ const WAIT = path.join(KIT, 'plugins/factory/bin/factory-wait-ci');
 const MAY_START = path.join(KIT, 'plugins/factory/may-start.sh');
 const CONFLICTING = path.join(KIT, 'plugins/factory/conflicting.sh');
 const CARDS = path.join(KIT, 'plugins/factory/move-cards.sh');
+const REPLY = path.join(KIT, 'plugins/factory/bin/factory-reply');
 const WORKFLOW = path.join(KIT, '.github/workflows/factory.yml');
 const BOARD_WORKFLOW = path.join(KIT, '.github/workflows/factory-board.yml');
 const CONFLICTS_WORKFLOW = path.join(KIT, '.github/workflows/factory-conflicts.yml');
@@ -24,7 +25,7 @@ const RESULT = { type: 'result', subtype: 'success', is_error: false, result: 'O
 const ISSUE = { number: 12, title: 'slugify drops accents', author: { login: 'someone' }, body: 'First line.\n\nExpected: `creme-brulee`.' };
 
 // A folder with a `claude` that records its arguments and prints a transcript, and a `gh` that answers from files.
-function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [], permissions = {}, prs = {}, comments = {} } = {}) {
+function lab({ issue = ISSUE, result = RESULT, exit = 0, items = [], fields = [], checks = [], permissions = {}, prs = {}, comments = {}, threads = [] } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'factory-'));
   mkdirSync(path.join(dir, 'bin'));
   mkdirSync(path.join(dir, 'work'));
@@ -60,7 +61,9 @@ case "$1 $2" in
     f=${JSON.stringify(path.join(dir, 'mergeable'))}-$3-$n.json
     [ -f "$f" ] || f=${JSON.stringify(path.join(dir, 'mergeable'))}-$3-last.json
     cat "$f" ;;
-  "api repos/"*"/reactions") ;;
+  "api repos/"*"/reactions" | "api repos/"*"/replies") ;;
+  "api graphql")
+    case "$*" in *resolveReviewThread*) echo '{}' ;; *) cat ${JSON.stringify(path.join(dir, 'threads.json'))} ;; esac ;;
   "api repos/"*"/issues/comments/"*) cat ${JSON.stringify(path.join(dir, 'comment'))}-$(basename "$2").json ;;
   "api repos/"*)
     f=${JSON.stringify(path.join(dir, 'permission'))}-$(basename "$(dirname "$2")")
@@ -83,6 +86,8 @@ esac
       JSON.stringify({ baseRefName: 'main', headRefOid: `head-${n}`, comments: [], reviews: [], closingIssuesReferences: [], ...(typeof answer === 'string' ? { mergeable: answer } : answer) }),
     ));
   }
+  // The review threads of a pull request, as GitHub's GraphQL API answers.
+  writeFileSync(path.join(dir, 'threads.json'), JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: threads } } } } }));
   // Comments people wrote, by id.
   for (const [id, comment] of Object.entries(comments)) writeFileSync(path.join(dir, `comment-${id}.json`), JSON.stringify(comment));
   // What the repository says a person may do; a login with no file is one GitHub does not know.
@@ -688,4 +693,46 @@ test('a pull request that passed QA is marked ready by the workflow, with a toke
   assert.match(step, /if: inputs\.stage == 'qa' && steps\.stage\.outcome == 'success'/);
   assert.match(step, /permission-contents: write\n\s+permission-pull-requests: write\n/);
   assert.match(scripts(yaml), /if \[ "\$\(cat "\$FACTORY_OUT\/qa-\$NUMBER\.verdict"\)" = pass \]; then gh pr ready "\$NUMBER"; fi/);
+});
+
+// ── factory-reply ───────────────────────────────────────────────────────────────────────────────────────────────
+// A comment on a line is answered in its own thread, and that thread resolved once the change it asked for is made.
+// The run's settings deny `gh api` writes: this command is the one the respond stage has for it.
+const THREADS = [{ id: 'T-1', comments: { nodes: [{ databaseId: 11 }] } }, { id: 'T-2', comments: { nodes: [{ databaseId: 22 }, { databaseId: 23 }] } }];
+
+test('a reply to a comment on a line goes in its thread, and --resolve resolves that thread alone', () => {
+  const l = lab({ threads: THREADS });
+  const r = l.run(REPLY, ['31', '23', 'Done in abc1234: added the test.']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(l.gh().includes('api repos/{owner}/{repo}/pulls/31/comments/23/replies -f body=Done in abc1234: added the test.'), l.gh().join('\n'));
+  assert.ok(!l.gh().some((call) => call.startsWith('api graphql')), 'a reply alone leaves the thread open');
+  const again = lab({ threads: THREADS });
+  assert.equal(again.run(REPLY, ['--resolve', '31', '23', 'Done.']).status, 0);
+  assert.ok(again.gh().some((call) => /^api graphql .*number=31/.test(call)), again.gh().join('\n'));
+  const resolved = again.gh().filter((call) => call.includes('resolveReviewThread'));
+  assert.equal(resolved.length, 1);
+  assert.match(resolved[0], /thread=T-2( |$)/);
+});
+
+test('a comment in no thread is not answered, and a wrong call stops before anything is posted', () => {
+  const l = lab({ threads: THREADS });
+  const r = l.run(REPLY, ['--resolve', '31', '99', 'Done.']);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /99/);
+  assert.ok(!l.gh().some((call) => call.includes('/replies') || call.includes('resolveReviewThread')), l.gh().join('\n'));
+  for (const args of [[], ['31', '23'], ['x', '23', 'hi'], ['31', '23; rm -rf .', 'hi'], ['31', '23', ''], ['--resolve', '31', '23'], ['--close', '31', '23', 'hi']]) {
+    const w = lab({ threads: THREADS });
+    assert.equal(w.run(REPLY, args).status, 64, JSON.stringify(args));
+    assert.deepEqual(w.gh(), [], JSON.stringify(args));
+  }
+});
+
+test('the respond stage answers a comment on a line in its thread, briefly, and leaves open what it did not change', () => {
+  const l = lab();
+  assert.equal(l.run(RUN, ['respond', '31']).status, 0);
+  const prompt = l.prompt();
+  assert.match(prompt, /factory-reply --resolve/);
+  assert.match(prompt, /without `--resolve`/);
+  assert.match(prompt, /stays open/);
+  assert.match(prompt, /short/);
 });
