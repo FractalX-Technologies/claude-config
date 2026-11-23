@@ -22,6 +22,11 @@ npm run build
 
 - The developer usually keeps `npm run dev` running: don't stop it. Building is safe meanwhile (dev writes to
   `.next/dev`).
+- From 16.3, `next dev` writes an `AGENTS.md` at the root: set `agentRules: false` in `next.config.ts`, since the
+  agents' rules live in the global config.
+- Open the dev server at the host it started with (`localhost` unless `-H` names one). From another host, such as
+  `127.0.0.1`, Next blocks the dev assets and the page never hydrates: start it with `-H 127.0.0.1`, or list the
+  host in `allowedDevOrigins`.
 
 ## Adding a page
 
