@@ -1,6 +1,6 @@
 ---
 name: flow-secrets
-description: Run an app with its secrets from Infisical - ask which of the repo's environments, check the session, start it through the repo's own command, and never print a value. Use before starting, building or signing an app in a repo with `.infisical.yaml` at its root ("run the app", "start the backend", "start it in dev", "with the prod keys"), when a start stops on a missing key or session ("no Infisical session", "infisical login", "a variable is missing"), or when asked to wire a repo to Infisical ("set up Infisical").
+description: Run an app with its secrets from Infisical - ask which of the repo's environments, check the session, start it through the repo's own command, and never print a value. Use before starting, building or signing an app in a repo with `.infisical.yaml` at its root ("run the app", "start the backend", "start it in dev", "with the prod keys"), when a start stops on a missing key or session ("no Infisical session", "infisical login", "a variable is missing"), or when asked to wire a repo to Infisical or lay out its project ("set up Infisical", "create the folders").
 ---
 
 # Secrets from Infisical
@@ -56,6 +56,8 @@ the owner has made the repo's project in Infisical, with its environments, and n
 theirs to type there.
 
 - `.infisical.yaml` at the root: the project and Infisical's address. An id, no secret.
+- The project's environments, folders and key names follow [the layout](references/layout.md): read it before
+  creating any of them or adding a secret.
 - One command per app that takes the environment by name, starts with the least reach by default, and can run
   with no keys at all, for a machine with no account.
 - Settings that are no secret, in a versioned file the app loads as it stands: a clone starts with nothing copied.
