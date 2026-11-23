@@ -73,6 +73,7 @@ theirs to type there.
   `jq` narrowing it to names, a run of `env` or `printenv`. The `protect-secrets` hook refuses them.
 - `infisical login` or `logout` yourself: the session is the person's, and a logout deletes it.
 - Writing a secret (`secrets set`, `delete`): a value typed as an argument stays in the shell's history. The owner
-  types it on Infisical's page. A value that doesn't exist yet is left out, never a placeholder.
+  types it on Infisical's page. A value that doesn't exist yet is left out, unless the owner asks for the keys up
+  front: then `CHANGE_ME`, by [the layout](references/layout.md) › Who reads and who writes.
 - A `.env` written from Infisical "to make it work": the repo's command is the way in.
 - Production's keys without the user naming production in this task, or past the repo's guard.

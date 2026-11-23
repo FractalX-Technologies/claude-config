@@ -10,6 +10,10 @@ made before this layout keeps its names where changing them would break a config
 - A value several repos use (a store account, a signing certificate's password) lives once, in a shared project of
   the organization. Each repo's pipeline reads it from there; it is never copied into each repo's project, where
   the copies drift.
+- The organization's project mirrors its CI's organization-level secrets (GitHub organization secrets): `prod` only,
+  a folder per consumer as below (`/release` for the store accounts and signing repo every app's pipeline uses). A
+  repo's project holds what is that repo's alone. Before adding a key, check where the CI already keeps it: an
+  organization secret goes to the organization's project.
 
 ## Environments
 
@@ -29,7 +33,7 @@ pipeline's or a tool's identity is granted one folder, never the project.
 | `/mobile` | keys a mobile build needs (a maps key) | the build. Nothing in a binary is secret |
 | `/functions` | serverless functions whose platform keeps its own secrets | the platform, through a sync |
 | `/db` | the database password and connection strings for migrations and ops scripts | the scripts |
-| `/release` | signing keys, store credentials, symbol upload tokens; in `prod` only | the release pipeline |
+| `/release` | this app's own signing key (an Android upload keystore) and symbol upload token; in `prod` only. Store accounts and the signing repo are the organization's | the release pipeline |
 | `/shared` | a value two folders need (a backend URL) | imported by those folders |
 | `/<tool>` | a bot or tool that runs with less reach than a person | that tool's own identity |
 
@@ -54,3 +58,5 @@ pipeline's or a tool's identity is granted one folder, never the project.
   that is lost.
 - Folders and environments carry no value: an agent may create them, by this layout. Values are typed by the owner
   on Infisical's page (`SKILL.md` › Never).
+- When the owner asks for the keys to be laid out before their values, each gets the value `CHANGE_ME` (the CLI
+  refuses an empty one). No Secret Sync is created while a folder still holds one: it would push it to the platform.
