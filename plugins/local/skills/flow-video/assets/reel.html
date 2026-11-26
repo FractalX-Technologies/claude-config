@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en" data-resolution="portrait">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15.0/dist/gsap.min.js"></script>
+    <style>
+      /* Two colours and the type: the brand sets them here and nowhere else. A family the renderer does not
+         supply by itself needs its @font-face here too. */
+      :root {
+        --ground: #000;
+        --ink: #ffffff;
+        --font-display: "Inter", sans-serif;
+        --font-text: "Inter", sans-serif;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body,
+      #root {
+        width: 1080px;
+        height: 1920px;
+        overflow: hidden;
+        background: var(--ground);
+      }
+      #root {
+        position: relative;
+        font-family: var(--font-display);
+        color: var(--ink);
+      }
+      .full {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1080px;
+        height: 1920px;
+      }
+      .shot {
+        object-fit: cover;
+      }
+      /* Darkens the top and the foot, so white type reads on a bright wall. */
+      #shade {
+        background: linear-gradient(to bottom, rgb(0 0 0 / 0.62), rgb(0 0 0 / 0.42) 11%, rgb(0 0 0 / 0) 24%, rgb(0 0 0 / 0) 48%, rgb(0 0 0 / 0.55) 72%, rgb(0 0 0 / 0.7));
+      }
+      /* Inside the platform's band (168 to 1330 px): the header on top, the words at its foot. */
+      #brand {
+        position: absolute;
+        left: 60px;
+        top: 192px;
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font-family: var(--font-text);
+        text-shadow: 0 2px 18px rgb(0 0 0 / 0.5);
+      }
+      #brand img {
+        display: block;
+        width: 68px;
+        height: 68px;
+        border-radius: 50%;
+      }
+      #brand-name {
+        font-weight: 700;
+        font-size: 27px;
+        line-height: 1;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+      #brand-event {
+        margin-top: 9px;
+        font-size: 23px;
+        line-height: 1;
+        letter-spacing: 0.04em;
+        color: rgb(255 255 255 / 0.8);
+      }
+      .word {
+        position: absolute;
+        left: 56px;
+        top: 1040px;
+        overflow: hidden;
+      }
+      .word span {
+        display: block;
+        padding: 6px 30px 14px;
+        background: var(--ground);
+        font-weight: 900;
+        font-size: 190px;
+        line-height: 1;
+        letter-spacing: -0.03em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .word.plain span {
+        background: none;
+        padding-left: 8px;
+        text-shadow: 0 6px 40px rgb(0 0 0 / 0.55);
+      }
+      #flash {
+        background: var(--ink);
+        opacity: 0;
+      }
+      #end {
+        background: var(--ground);
+        font-family: var(--font-text);
+        text-align: center;
+      }
+      #end > * {
+        position: absolute;
+        left: 0;
+        width: 1080px;
+      }
+      #end-logo {
+        left: 380px;
+        top: 400px;
+        width: 320px;
+        height: 320px;
+      }
+      #end-name {
+        top: 770px;
+        font-weight: 700;
+        font-size: 50px;
+        line-height: 1;
+        letter-spacing: 0.42em;
+        text-indent: 0.42em;
+        text-transform: uppercase;
+      }
+      #end-rule {
+        left: 500px;
+        top: 866px;
+        width: 80px;
+        height: 3px;
+        background: var(--ink);
+      }
+      #end-line {
+        top: 906px;
+        font-size: 58px;
+        line-height: 1.15;
+        letter-spacing: -0.01em;
+      }
+      #end-foot {
+        top: 1060px;
+        font-size: 30px;
+        line-height: 1;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgb(255 255 255 / 0.62);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- The root's length is the last shot's end plus the closing card's. -->
+    <div id="root" data-composition-id="main" data-start="0" data-duration="9.2" data-width="1080" data-height="1920">
+      <video id="s1" class="clip full shot" src="assets/s1.mp4" data-start="0" data-duration="2.2" data-track-index="0" playsinline data-has-audio="true"></video>
+      <video id="s2" class="clip full shot" src="assets/s2.mp4" data-start="2.2" data-duration="2" data-track-index="0" playsinline data-has-audio="true"></video>
+      <video id="s3" class="clip full shot" src="assets/s3.mp4" data-start="4.2" data-duration="2" data-track-index="0" playsinline data-has-audio="true"></video>
+
+      <div id="shade" class="clip full" data-start="0" data-duration="6.2" data-track-index="1"></div>
+
+      <div id="brand" class="clip" data-start="0" data-duration="6.2" data-track-index="2">
+        <img src="assets/logo.png" alt="" />
+        <div>
+          <div id="brand-name">Brand name</div>
+          <div id="brand-event">Event · date</div>
+        </div>
+      </div>
+
+      <!-- The hook is on screen from frame 0; then one word a shot. -->
+      <div id="hook" class="clip word plain" data-start="0" data-duration="2.2" data-track-index="3"><span>Hook.</span></div>
+      <div id="w1" class="clip word" data-start="2.2" data-duration="2" data-track-index="3"><span>One</span></div>
+      <div id="w2" class="clip word" data-start="4.2" data-duration="2" data-track-index="3"><span>Word.</span></div>
+
+      <div id="end" class="clip full" data-start="6.2" data-duration="3" data-track-index="4">
+        <img id="end-logo" src="assets/logo.png" alt="" />
+        <div id="end-name">Brand name</div>
+        <div id="end-rule"></div>
+        <div id="end-line">One closing line.</div>
+        <div id="end-foot">The call to action</div>
+      </div>
+
+      <div id="flash" class="clip full" data-start="0" data-duration="9.2" data-track-index="5"></div>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      // Shot, start, length. The words and the closing card follow these times.
+      const cuts = [
+        ["#s1", 0, 2.2],
+        ["#s2", 2.2, 2],
+        ["#s3", 4.2, 2],
+      ];
+      const end = 6.2;
+
+      // Every shot lands with a short punch-in, then keeps drifting in. A later fromTo on a target would paint its
+      // start at time 0 (a white first frame from the flash): immediateRender false on each.
+      cuts.forEach(([shot, at, length], index) => {
+        tl.fromTo(shot, { scale: index === 0 ? 1.04 : 1.14 }, { scale: 1.04, duration: 0.28, ease: "power3.out" }, at);
+        tl.fromTo(shot, { scale: 1.04 }, { scale: 1.1, duration: length - 0.28, ease: "none", immediateRender: false }, at + 0.28);
+        if (index > 0) tl.fromTo("#flash", { opacity: 0.55 }, { opacity: 0, duration: 0.14, ease: "power1.out", immediateRender: false }, at);
+      });
+
+      tl.fromTo("#hook span", { yPercent: 0 }, { yPercent: -110, duration: 0.2, ease: "power3.in", immediateRender: false }, 2.0);
+
+      // Each word slams up from under its own edge, and leaves before the next cut.
+      [
+        ["#w1 span", 2.2],
+        ["#w2 span", 4.2],
+      ].forEach(([word, at]) => {
+        tl.fromTo(word, { yPercent: 105 }, { yPercent: 0, duration: 0.24, ease: "power4.out" }, at + 0.04);
+        tl.fromTo(word, { yPercent: 0 }, { yPercent: -105, duration: 0.18, ease: "power3.in", immediateRender: false }, at + 1.8);
+      });
+
+      // The closing card: a hard cut, then its parts fade up one after the other.
+      tl.fromTo("#flash", { opacity: 0.7 }, { opacity: 0, duration: 0.16, ease: "power1.out", immediateRender: false }, end);
+      tl.fromTo("#end-logo", { scale: 0.92, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "power2.out" }, end + 0.05);
+      tl.fromTo("#end-name", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" }, end + 0.35);
+      tl.fromTo("#end-rule", { scaleX: 0 }, { scaleX: 1, duration: 0.4, ease: "power2.out" }, end + 0.75);
+      tl.fromTo("#end-line", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, end + 0.9);
+      tl.fromTo("#end-foot", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.out" }, end + 1.3);
+
+      window.__timelines["main"] = tl;
+      tl.seek(0);
+    </script>
+  </body>
+</html>
