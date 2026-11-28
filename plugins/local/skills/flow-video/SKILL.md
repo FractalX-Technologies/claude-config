@@ -1,6 +1,6 @@
 ---
 name: flow-video
-description: Make a short video with words and motion from real clips or photos (a reel, a story, a promo) as an HTML page rendered to MP4 with HyperFrames - pick the shots, cut them, build the page, lint, render, look at the frames, show the file. Use when the user asks for a reel, a short video or a clip with text on it ("make a reel", "a video for the story", "animate these clips"), or to change one already made this way.
+description: Make a short video with words and motion from real clips or photos (a reel, a story, a promo) as an HTML page rendered to MP4 with HyperFrames - ask the music, pick the shots, cut them, build the page, lint, render, look at the frames, show the file. Use when the user asks for a reel, a short video or a clip with text on it ("make a reel", "a video for the story", "animate these clips"), or to change one already made this way.
 ---
 
 # Make a short video
@@ -26,20 +26,28 @@ Motion choices (timing, easing, what moves and why) come from the `motion-design
 1. **Ask what it is for**, unless said: where it goes out (that fixes the size: a vertical reel or story is 1080 by
    1920), how long, the line it says, the brand's colours and logo. Read the product's own content notes when it has
    them. Done when each of the five has an answer.
-2. **Pick the shots.** Watch every candidate as a contact sheet (`ffmpeg -vf "fps=2,scale=320:-1,tile=8x1"`) and note,
+2. **Ask which music**, every time, and never choose it yourself. Offer the tracks of the product's media in HQ
+   (`show_music` opens a page to listen to them; a post with the video then names the track in `musicChoice`) and the
+   owner's library in `~/FractalX/media/music` (its README lists each track's style, tempo and drop), or none. Done
+   when the user named one track, or none, and you know the second its drop lands on.
+3. **Pick the shots.** Watch every candidate as a contact sheet (`ffmpeg -vf "fps=2,scale=320:-1,tile=8x1"`) and note,
    per shot, the file, the seconds to keep and where the action sits. Five or six shots of about 2 seconds make 15
    seconds. Done when every shot has in, out and a crop.
-3. **Cut them** into the project's `assets/`, one file a shot, already at the page's size and in standard range (see
+4. **Cut them** into the project's `assets/`, one file a shot, already at the page's size and in standard range (see
    Traps). Done when each file plays, is the right size and looks like the original's colours.
-4. **Build the page** from [`assets/reel.html`](assets/reel.html): set the lengths, the words and the brand. Keep its
+5. **Build the page** from [`assets/reel.html`](assets/reel.html): set the lengths, the words and the brand. Keep its
    structure rules (below). Done when `hyperframes lint` reports 0 errors.
-5. **Render**: `npx --yes hyperframes@<version> render --output <file>.mp4`, from the project folder.
-6. **Check the frames**: one frame of every shot and three of the closing card, tiled into one picture
+6. **Render**: `npx --yes hyperframes@<version> render --output <file>.mp4`, from the project folder.
+   With a track, lay it under the render with the project's `mix.sh`, copied from [`assets/mix.sh`](assets/mix.sh):
+   `start` is the drop's second minus the first cut's, so the drop lands on that cut; `length` is the video's. The
+   track stays where it is, named by its path, never copied into the project. Done when the drop is heard on the
+   first cut (pull the audio at that second: `ffmpeg -ss <cut> -t 2`).
+7. **Check the frames**: one frame of every shot and three of the closing card, tiled into one picture
    (`select='eq(n,20)+eq(n,100)…',tile=Nx1`). Done when no word is cut, covers a face or wraps, nothing sits in the
    platform's bands, and the first frame already shows the hook.
-7. **Show it**: open the file, say its full path and what is in it, and what you did not check (sound, motion at
+8. **Show it**: open the file, say its full path and what is in it, and what you did not check (sound, motion at
    speed). A change is a new render shown again.
-8. **Keep the look.** When the user approves a look they will reuse, keep the page without its shots as a template
+9. **Keep the look.** When the user approves a look they will reuse, keep the page without its shots as a template
    beside the brand's files, and write the look down where the product's content notes live.
 
 Pin `<version>` in the project's `package.json` scripts, to a release at least 14 days old. Proven on 0.9.7, node 24.
